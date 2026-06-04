@@ -3,7 +3,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export function Table({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) {
-  return <table className={cn("w-full caption-bottom text-sm", className)} {...props} />;
+  return <table className={cn("w-full min-w-max caption-bottom text-sm", className)} {...props} />;
 }
 
 export function TableHeader({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {
@@ -19,10 +19,9 @@ export function TableRow({ className, ...props }: React.HTMLAttributes<HTMLTable
 }
 
 export function TableHead({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) {
-  return <th className={cn("h-10 px-3 text-left align-middle text-xs font-semibold uppercase text-muted-foreground", className)} {...props} />;
+  return <th className={cn("h-10 whitespace-nowrap px-2 text-left align-middle text-xs font-semibold uppercase text-muted-foreground sm:px-3", className)} {...props} />;
 }
 
 export function TableCell({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("px-3 py-2 align-middle", className)} {...props} />;
+  return <td className={cn("max-w-56 whitespace-nowrap px-2 py-2 align-middle sm:max-w-72 sm:px-3", className)} {...props} />;
 }
-

@@ -1,4 +1,5 @@
 import {
+  ArrowUp,
   BarChart3,
   Boxes,
   Calculator,
@@ -22,7 +23,7 @@ import {
   WalletCards
 } from "lucide-react";
 import type React from "react";
-import { FormEvent, Fragment, useEffect, useMemo, useState } from "react";
+import { FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -172,6 +173,26 @@ function display(value: unknown) {
   return String(value);
 }
 
+function formatDateDDMMYYYY(value: unknown) {
+  if (!value) return "";
+  const raw = String(value);
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(date);
+}
+
+function capitalizeFirst(value: unknown) {
+  const text = String(value ?? "");
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
+}
+
 function displayCell(row: AnyRow, column: string) {
   const value = row[column];
   if (column === "houseId") {
@@ -234,7 +255,15 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 function SelectBox(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={cn("h-9 rounded-md border bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring", props.className)} />;
+  return (
+    <select
+      {...props}
+      className={cn(
+        "h-10 w-full max-w-full appearance-none rounded-md border bg-background bg-[linear-gradient(45deg,transparent_50%,currentColor_50%),linear-gradient(135deg,currentColor_50%,transparent_50%)] bg-[length:5px_5px,5px_5px] bg-[position:calc(100%-18px)_50%,calc(100%-13px)_50%] bg-no-repeat px-3 pr-9 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:w-auto sm:text-sm",
+        props.className
+      )}
+    />
+  );
 }
 
 type SearchableOption = { value: string; label: string; search?: string };
@@ -316,10 +345,10 @@ function Login({ onLogin, logoSrc }: { onLogin: () => void; logoSrc: string }) {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="mb-4 flex justify-center">
-          <img src={logoSrc} alt="Festival Expense Logo" className="max-h-24 object-contain" />
+          <img src={logoSrc} alt="Festival Expense Logo" className="max-h-20 object-contain sm:max-h-24" />
         </div>
         <Card>
           <CardContent className="pt-5">
@@ -374,15 +403,11 @@ function Dashboard({ setActive }: { setActive: (key: ResourceKey) => void }) {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-4">
-          <h1 className="text-3xl font-semibold">Dashboard</h1>
-          <strong className="text-xl">{money(balance)}</strong>
-          <div className="h-3 min-w-48 flex-1 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-[repeating-linear-gradient(45deg,#1aa7b8_0,#1aa7b8_8px,#38bfd0_8px,#38bfd0_16px)]" style={{ width: `${progress}%` }} />
-          </div>
-          <strong className="text-lg">{progress.toFixed(2)}%</strong>
-          <strong className="text-xl text-primary">{money(fundTotal)}</strong>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          <h1 className="text-2xl font-semibold sm:text-3xl">Dashboard</h1>
+          <strong className="text-lg sm:text-xl">{money(balance)}</strong>
+          <AnimatedProgressMeter progress={progress} start={0} end={fundTotal} />
         </div>
         <SelectBox value={year} onChange={(event) => setYear(event.target.value)}>
           <option value="">All</option>
@@ -392,12 +417,14 @@ function Dashboard({ setActive }: { setActive: (key: ResourceKey) => void }) {
       <div className="grid gap-4 xl:grid-cols-2">
         <DashboardBlock
           className="bg-[#28a745]"
+          icon={BarChart3}
           title="Balance"
           value={balance}
           lines={[`Cash: ${money(paymentTotal(funds, "Cash") - paymentTotal(expenses, "Cash"))} | GPay: ${money(paymentTotal(funds, "GPay") - paymentTotal(expenses, "GPay"))}`]}
         />
         <DashboardBlock
           className="bg-[#17a2b8]"
+          icon={WalletCards}
           title="Total Fund"
           value={fundTotal}
           lines={[`Cash: ${money(paymentTotal(funds, "Cash"))} | GPay: ${money(paymentTotal(funds, "GPay"))}`]}
@@ -405,16 +432,17 @@ function Dashboard({ setActive }: { setActive: (key: ResourceKey) => void }) {
         />
         <DashboardBlock
           className="bg-[#dc3545]"
+          icon={ReceiptText}
           title="Total Expense"
           value={expenseTotal}
           lines={[`Cash: ${money(paymentTotal(expenses, "Cash"))} | GPay: ${money(paymentTotal(expenses, "GPay"))}`, `Settled: ${money(settledTotal)} | Unsettled: ${money(unsettledTotal)}`]}
           onMore={() => setActive("expenses")}
         />
-        <div className="grid gap-4 md:grid-cols-2">
-          <CountBlock className="bg-[#ffc107] text-[#1f2937]" title="Houses" value={houses.length} onMore={() => setActive("house")} />
-          <CountBlock className="bg-[#007bff]" title="Volunteers" value={volunteers.length} onMore={() => setActive("volunteers")} />
-          <CountBlock className="bg-[#6f42c1]" title="Estimate" value={money(estimateTotal)} onMore={() => setActive("estimates")} />
-          <CountBlock className="bg-[#6c757d]" title="Todos" value={todos.length} onMore={() => setActive("todos")} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CountBlock animate className="bg-[#ffc107] text-[#1f2937]" icon={Home} title="Houses" value={houses.length} onMore={() => setActive("house")} />
+          <CountBlock className="bg-[#007bff]" icon={UsersRound} title="Volunteers" value={volunteers.length} onMore={() => setActive("volunteers")} />
+          <CountBlock animate className="bg-[#6f42c1]" icon={Calculator} title="Estimate" value={estimateTotal} format={money} onMore={() => setActive("estimates")} />
+          <CountBlock animate className="bg-[#6c757d]" icon={ClipboardList} title="Todos" value={todos.length} onMore={() => setActive("todos")} />
         </div>
       </div>
       <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
@@ -434,14 +462,74 @@ function Dashboard({ setActive }: { setActive: (key: ResourceKey) => void }) {
   );
 }
 
-function DashboardBlock({ className, title, value, lines, onMore }: { className: string; title: string; value: number; lines: string[]; onMore?: () => void }) {
+function useAnimatedNumber(value: number, duration = 900) {
+  const [displayValue, setDisplayValue] = useState(0);
+  const displayValueRef = useRef(0);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      displayValueRef.current = value;
+      setDisplayValue(value);
+      return;
+    }
+
+    const startValue = displayValueRef.current;
+    const change = value - startValue;
+    const startTime = performance.now();
+    let frame = 0;
+
+    function tick(now: number) {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const nextValue = startValue + (change * eased);
+      displayValueRef.current = nextValue;
+      setDisplayValue(nextValue);
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    }
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [duration, value]);
+
+  return displayValue;
+}
+
+function CountUpText({ value, format = (item) => String(Math.round(item)) }: { value: number; format?: (value: number) => string }) {
+  const displayValue = useAnimatedNumber(value);
+  return <>{format(displayValue)}</>;
+}
+
+function AnimatedProgressMeter({ progress, start, end }: { progress: number; start: number; end: number }) {
+  const displayProgress = Math.max(0, Math.min(100, useAnimatedNumber(progress)));
+
   return (
-    <div className={cn("overflow-hidden rounded-md text-white shadow-sm", className)}>
-      <div className="space-y-5 p-5">
-        <p className="text-5xl font-semibold">{money(value)}</p>
+    <div className="w-full min-w-0 sm:min-w-64 sm:flex-1">
+      <div className="text-center text-sm font-semibold text-primary sm:text-base">
+        <CountUpText value={progress} format={(value) => `${value.toFixed(2)}%`} />
+      </div>
+      <div className="mt-1 h-4 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-[repeating-linear-gradient(45deg,#1aa7b8_0,#1aa7b8_8px,#38bfd0_8px,#38bfd0_16px)] transition-[width]"
+          style={{ width: `${displayProgress}%` }}
+        />
+      </div>
+      <div className="mt-1 flex items-center justify-between text-xs font-semibold text-muted-foreground sm:text-sm">
+        <span><CountUpText value={start} format={money} /></span>
+        <span><CountUpText value={end} format={money} /></span>
+      </div>
+    </div>
+  );
+}
+
+function DashboardBlock({ className, icon: Icon, title, value, lines, onMore }: { className: string; icon: typeof Home; title: string; value: number; lines: string[]; onMore?: () => void }) {
+  return (
+    <div className={cn("relative overflow-hidden rounded-md text-white shadow-sm", className)}>
+      <Icon className="pointer-events-none absolute right-4 top-1/2 h-24 w-24 -translate-y-1/2 opacity-20 sm:right-6 sm:h-32 sm:w-32" />
+      <div className="relative z-10 space-y-4 p-4 pr-20 sm:space-y-5 sm:p-5 sm:pr-28">
+        <p className="break-words text-3xl font-semibold sm:text-5xl"><CountUpText value={value} format={money} /></p>
         <div>
-          <p className="text-xl font-medium">{title}</p>
-          <div className="mt-6 space-y-1 text-lg font-semibold">{lines.map((line) => <p key={line}>{line}</p>)}</div>
+          <p className="text-lg font-medium sm:text-xl">{title}</p>
+          <div className="mt-4 space-y-1 text-sm font-semibold sm:mt-6 sm:text-lg">{lines.map((line) => <p key={line}>{line}</p>)}</div>
         </div>
       </div>
       {onMore ? <button className="w-full bg-black/10 px-3 py-2 text-lg font-semibold hover:bg-black/20" type="button" onClick={onMore}>More info</button> : <div className="h-11 bg-black/5" />}
@@ -449,12 +537,13 @@ function DashboardBlock({ className, title, value, lines, onMore }: { className:
   );
 }
 
-function CountBlock({ className, title, value, onMore }: { className: string; title: string; value: string | number; onMore: () => void }) {
+function CountBlock({ className, icon: Icon, title, value, format, animate, onMore }: { className: string; icon: typeof Home; title: string; value: number; format?: (value: number) => string; animate?: boolean; onMore: () => void }) {
   return (
-    <div className={cn("overflow-hidden rounded-md text-white shadow-sm", className)}>
-      <div className="p-5">
-        <p className="text-5xl font-semibold">{value}</p>
-        <p className="mt-5 text-xl">{title}</p>
+    <div className={cn("relative overflow-hidden rounded-md text-white shadow-sm", className)}>
+      <Icon className="pointer-events-none absolute right-4 top-1/2 h-20 w-20 -translate-y-1/2 opacity-20 sm:h-24 sm:w-24" />
+      <div className="relative z-10 p-4 pr-20 sm:p-5 sm:pr-24">
+        <p className="break-words text-3xl font-semibold sm:text-5xl">{animate ? <CountUpText value={value} format={format} /> : format ? format(value) : value}</p>
+        <p className="mt-4 text-lg sm:mt-5 sm:text-xl">{title}</p>
       </div>
       <button className="w-full bg-black/10 px-3 py-2 text-lg font-semibold hover:bg-black/20" type="button" onClick={onMore}>More info</button>
     </div>
@@ -470,9 +559,9 @@ function RecentPanel({ title, rows, columns, moneyColumns, addLabel, viewLabel, 
       </CardHeader>
       <CardContent className="p-0">
         <DataTable rows={rows} columns={columns} moneyColumns={moneyColumns} renderCell={renderCell} rowClassName={highlight ? "bg-emerald-100 text-emerald-950 hover:bg-emerald-100 dark:bg-emerald-100 dark:text-emerald-950 dark:hover:bg-emerald-100" : undefined} />
-        <div className="flex justify-between gap-2 border-t p-4">
-          <Button onClick={onAdd}><Plus className="h-4 w-4" /> {addLabel}</Button>
-          <Button variant="outline" onClick={onView}>{viewLabel}</Button>
+        <div className="grid gap-2 border-t p-3 sm:flex sm:justify-between sm:p-4">
+          <Button className="w-full sm:w-auto" onClick={onAdd}><Plus className="h-4 w-4" /> {addLabel}</Button>
+          <Button className="w-full sm:w-auto" variant="outline" onClick={onView}>{viewLabel}</Button>
         </div>
       </CardContent>
     </Card>
@@ -562,35 +651,35 @@ function FundPage() {
     setModal("form");
   }
 
-  const columns = ["type", "name", "houseId", "amount", "volunteerId", "paymentMethod", "reference"];
+  const columns = ["type", "name", "houseId", "amount", "volunteerId", "paymentMethod", "reference", "__delete"];
 
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Fund List</h1>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={openSummary}><UsersRound className="h-4 w-4" /> Volunteer Summary</Button>
-          <Button variant="outline" onClick={openUnpaid}><Home className="h-4 w-4" /> Unpaid List</Button>
-          <Button onClick={() => { setEditing(null); setDraftFund(null); setModal("form"); }}><Plus className="h-4 w-4" /> Add Fund</Button>
+        <div className="grid w-full gap-2 sm:w-auto sm:grid-flow-col sm:auto-cols-max">
+          <Button className="w-full sm:w-auto" variant="outline" onClick={openSummary}><UsersRound className="h-4 w-4" /> Volunteer Summary</Button>
+          <Button className="w-full sm:w-auto" variant="outline" onClick={openUnpaid}><Home className="h-4 w-4" /> Unpaid List</Button>
+          <Button className="w-full sm:w-auto" onClick={() => { setEditing(null); setDraftFund(null); setModal("form"); }}><Plus className="h-4 w-4" /> Add Fund</Button>
         </div>
       </div>
       <Card>
         <CardContent className="space-y-3 pt-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => setSort("-createdAt")}><RefreshCcw className="h-4 w-4" /> Reset Sort</Button>
+          <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+            <Button className="w-full sm:w-auto" variant="outline" onClick={() => setSort("-createdAt")}><RefreshCcw className="h-4 w-4" /> Reset Sort</Button>
             <SelectBox value={year} onChange={(event) => setYear(event.target.value)}><option value="">All</option>{years.map((item) => <option key={item} value={item}>{item}</option>)}</SelectBox>
             <SelectBox value={volunteerId} onChange={(event) => setVolunteerId(event.target.value)}>
               <option value="">All Volunteers</option>
               {volunteers.map((volunteer) => <option key={rowId(volunteer)} value={rowId(volunteer)}>{volunteer.name}</option>)}
             </SelectBox>
-            <Input className="w-36" placeholder="Search amount" value={amount} onChange={(event) => setAmount(event.target.value)} />
-            <div className="relative w-44">
+            <Input className="sm:w-36" placeholder="Search amount" value={amount} onChange={(event) => setAmount(event.target.value)} />
+            <div className="relative sm:w-44">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input className="pl-8" placeholder="Search" value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
-            <Input className="w-40" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
-            <Input className="w-40" type="date" value={endDate} min={startDate} disabled={!startDate} onChange={(event) => setEndDate(event.target.value)} />
-            <Button variant="outline" onClick={() => { setStartDate(""); setEndDate(""); }}>Clear Dates</Button>
+            <Input className="sm:w-40" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+            <Input className="sm:w-40" type="date" value={endDate} min={startDate} disabled={!startDate} onChange={(event) => setEndDate(event.target.value)} />
+            <Button className="w-full sm:w-auto" variant="outline" onClick={() => { setStartDate(""); setEndDate(""); }}>Clear Dates</Button>
           </div>
           <DataTable
             rows={rows}
@@ -598,12 +687,35 @@ function FundPage() {
             moneyColumns={["amount"]}
             sortableColumns={["amount"]}
             onSort={(column) => setSort(sort === column ? `-${column}` : column)}
+            stickyActions
+            columnClassName={(column) => fundColumnClassName(column)}
+            renderHeader={(column) => column === "type" ? (
+              <>
+                <span className="md:hidden">#</span>
+                <span className="hidden md:inline">Type</span>
+              </>
+            ) : undefined}
+            renderCell={(row, column) => {
+              if (column === "type") {
+                const type = capitalizeFirst(row.type);
+                return (
+                  <>
+                    <span className="md:hidden">{type.charAt(0)}</span>
+                    <span className="hidden md:inline">{type}</span>
+                  </>
+                );
+              }
+              if (column === "__delete") {
+                return <Button variant="ghost" size="icon" title="Delete" onClick={() => remove(rowId(row))}><Trash2 className="h-4 w-4" /></Button>;
+              }
+              return undefined;
+            }}
             actions={(row) => (
               <div className="flex gap-1">
-                <Button variant="outline" size="icon" title="Receipt" onClick={() => downloadReceipt(rowId(row))}><ReceiptText className="h-4 w-4" /></Button>
-                <Button variant="outline" size="icon" title="WhatsApp" onClick={() => openWhatsApp(row)}><WhatsAppIcon /></Button>
-                <Button variant="outline" size="icon" title="Edit" onClick={() => { setEditing(row); setModal("form"); }}><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" title="Delete" onClick={() => remove(rowId(row))}><Trash2 className="h-4 w-4" /></Button>
+                <Button className="max-md:h-8 max-md:min-h-8 max-md:w-8" variant="outline" size="icon" title="Receipt" onClick={() => downloadReceipt(rowId(row))}><ReceiptText className="h-4 w-4" /></Button>
+                <Button className="max-md:h-8 max-md:min-h-8 max-md:w-8" variant="outline" size="icon" title="WhatsApp" onClick={() => openWhatsApp(row)}><WhatsAppIcon /></Button>
+                <Button className="max-md:h-8 max-md:min-h-8 max-md:w-8" variant="outline" size="icon" title="Edit" onClick={() => { setEditing(row); setModal("form"); }}><Pencil className="h-4 w-4" /></Button>
+                <Button className="hidden md:inline-flex" variant="ghost" size="icon" title="Delete" onClick={() => remove(rowId(row))}><Trash2 className="h-4 w-4" /></Button>
               </div>
             )}
           />
@@ -704,17 +816,17 @@ function FundForm({ fund, initialFund, volunteers, year, onClose, onSaved }: { f
         <Field label="Festival Year"><SelectBox value={form.festivalYear} onChange={(event) => setValue("festivalYear", event.target.value)}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</SelectBox></Field>
         <Field label="Alternative Phone"><Input value={form.alternativePhone} onChange={(event) => setValue("alternativePhone", event.target.value)} /></Field>
         <Field label="Volunteer"><SearchableSelect value={form.volunteerId} onChange={(value) => setValue("volunteerId", value)} options={volunteerOptions} placeholder="Search volunteer" /></Field>
-        <div className="flex flex-wrap gap-2 md:col-span-2">
-          <Button type="submit">Save</Button>
-          <Button type="button" variant="secondary" onClick={(event) => submit(event as unknown as FormEvent, "download")}><Download className="h-4 w-4" /> Save & Download</Button>
-          <Button type="button" variant="outline" onClick={(event) => submit(event as unknown as FormEvent, "new")}>Save & New</Button>
-          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+        <div className="grid gap-2 md:col-span-2 sm:flex sm:flex-wrap">
+          <Button className="w-full sm:w-auto" type="submit">Save</Button>
+          <Button className="w-full sm:w-auto" type="button" variant="secondary" onClick={(event) => submit(event as unknown as FormEvent, "download")}><Download className="h-4 w-4" /> Save & Download</Button>
+          <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={(event) => submit(event as unknown as FormEvent, "new")}>Save & New</Button>
+          <Button className="w-full sm:w-auto" type="button" variant="ghost" onClick={onClose}>Cancel</Button>
         </div>
       </form>
       {form.paymentMethod === "GPay" ? (
         <button
           type="button"
-          className="mt-4 inline-flex items-center gap-3 rounded-md border bg-card p-2 text-left shadow-sm hover:bg-muted"
+          className="mt-4 inline-flex w-full items-center gap-3 rounded-md border bg-card p-2 text-left shadow-sm hover:bg-muted sm:w-auto"
           onClick={() => setQrOpen(true)}
         >
           <img src={gpayQr} alt="Google Pay QR" className="h-20 w-20 rounded border bg-white object-contain p-1" />
@@ -760,8 +872,8 @@ function Reports() {
         <h1 className="text-xl font-semibold">Festival Income & Expense Report</h1>
       </div>
       <Card>
-        <CardContent className="flex flex-wrap items-end justify-between gap-3 pt-4">
-          <div className="flex flex-wrap items-end gap-2">
+        <CardContent className="grid gap-3 pt-4 sm:flex sm:flex-wrap sm:items-end sm:justify-between">
+          <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-end">
             <Field label="Filter Year">
               <SelectBox className="w-32" value={year} onChange={(event) => setYear(event.target.value)}>
                 <option value="">All</option>
@@ -769,7 +881,7 @@ function Reports() {
               </SelectBox>
             </Field>
           </div>
-          <Button onClick={downloadReport} disabled={downloading}>
+          <Button className="w-full sm:w-auto" onClick={downloadReport} disabled={downloading}>
             <Download className="h-4 w-4" /> {downloading ? "Exporting..." : "Export PDF"}
           </Button>
         </CardContent>
@@ -991,14 +1103,14 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-semibold">{config.title} List</h1>
-          <Button onClick={openForm}><Plus className="h-4 w-4" /> {`Add ${config.title}`}</Button>
+          <Button className="w-full sm:w-auto" onClick={openForm}><Plus className="h-4 w-4" /> {`Add ${config.title}`}</Button>
         </div>
         <Card>
-          <CardContent className="flex flex-wrap items-center gap-2 pt-4">
+          <CardContent className="grid gap-2 pt-4 sm:flex sm:flex-wrap sm:items-center">
             {config.key === "festivals" || config.key === "estimates" || config.key === "expenses" ? <SelectBox value={year} onChange={(event) => { setYear(event.target.value); if (event.target.value) setFestivalId(""); }}><option value="">All</option>{years.map((item) => <option key={item} value={item}>{item}</option>)}</SelectBox> : null}
             {config.key === "estimates" || config.key === "expenses" ? <SelectBox value={festivalId} onChange={(event) => { setFestivalId(event.target.value); if (event.target.value) setYear(""); }}><option value="">All Festivals</option>{festivals.map((festival) => <option key={rowId(festival)} value={rowId(festival)}>{festival.name} ({festival.year})</option>)}</SelectBox> : null}
             {config.key === "expenses" ? <SelectBox value={volunteerId} onChange={(event) => setVolunteerId(event.target.value)}><option value="">All Volunteers</option>{volunteers.map((volunteer) => <option key={rowId(volunteer)} value={rowId(volunteer)}>{volunteer.name}</option>)}</SelectBox> : null}
-            {config.key === "estimates" || config.key === "expenses" ? <Input className="w-36" placeholder="Search amount" value={amount} onChange={(event) => setAmount(event.target.value)} /> : null}
+            {config.key === "estimates" || config.key === "expenses" ? <Input className="sm:w-36" placeholder="Search amount" value={amount} onChange={(event) => setAmount(event.target.value)} /> : null}
             {config.key === "todos" ? <SelectBox value={todoStatus} onChange={(event) => setTodoStatus(event.target.value)}><option value="">All</option><option value="false">Pending</option><option value="true">Completed</option></SelectBox> : null}
             {config.key === "todos" ? <SelectBox value={todoSort} onChange={(event) => setTodoSort(event.target.value)}><option value="desc">Latest First</option><option value="asc">Oldest First</option></SelectBox> : null}
             <div className="relative w-full sm:w-48">
@@ -1057,9 +1169,9 @@ function SettlementConfirmModal({ expense, loading, onClose, onConfirm }: { expe
           <p><strong>{display(expense.category || expense.description || "Expense")}</strong></p>
           <p className="text-muted-foreground">{money(expense.amount)}</p>
         </div>
-        <div className="flex justify-end gap-2">
-          <Button disabled={loading} variant="outline" onClick={onClose}>Cancel</Button>
-          <Button disabled={loading} onClick={onConfirm}>{loading ? "Updating..." : action.charAt(0).toUpperCase() + action.slice(1)}</Button>
+        <div className="grid gap-2 sm:flex sm:justify-end">
+          <Button className="w-full sm:w-auto" disabled={loading} variant="outline" onClick={onClose}>Cancel</Button>
+          <Button className="w-full sm:w-auto" disabled={loading} onClick={onConfirm}>{loading ? "Updating..." : action.charAt(0).toUpperCase() + action.slice(1)}</Button>
         </div>
       </div>
     </Modal>
@@ -1073,7 +1185,7 @@ function ResourceFormCard({ config, editingId, form, relationOptions = {}, setFo
       <CardContent>
         <form className="space-y-3" onSubmit={onSave}>
           {config.fields.map((field) => <FieldEditor key={field.key} field={field} options={relationOptions[field.key]} value={form[field.key]} onChange={(value) => setForm((current: AnyRow) => ({ ...current, [field.key]: value }))} />)}
-          <div className="flex gap-2"><Button type="submit">{editingId ? "Update" : "Create"}</Button><Button type="button" variant="outline" onClick={onClear}>Clear</Button></div>
+          <div className="grid gap-2 sm:flex"><Button className="w-full sm:w-auto" type="submit">{editingId ? "Update" : "Create"}</Button><Button className="w-full sm:w-auto" type="button" variant="outline" onClick={onClear}>Clear</Button></div>
         </form>
       </CardContent>
     </Card>
@@ -1086,7 +1198,7 @@ function VolunteerTable({ rows, expanded, expenses, onToggle, onEdit, onDelete }
       <Table>
         <TableHeader><TableRow><TableHead className="w-12" /><TableHead>Name</TableHead><TableHead>Phone</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
         <TableBody>
-          {rows.map((volunteer) => {
+          {rows.length ? rows.map((volunteer) => {
             const id = rowId(volunteer);
             const list = expenses[id] || [];
             const total = sumRows(list);
@@ -1103,7 +1215,12 @@ function VolunteerTable({ rows, expanded, expenses, onToggle, onEdit, onDelete }
                 {expanded[id] ? (
                   <TableRow key={`${id}-expenses`}>
                     <TableCell colSpan={4} className="bg-muted/40 p-0">
-                      <DataTable rows={list} columns={["festivalId", "category", "amount", "paymentMethod", "date"]} moneyColumns={["amount"]} />
+                      <DataTable
+                        rows={list}
+                        columns={["festivalId", "category", "amount", "paymentMethod", "date"]}
+                        moneyColumns={["amount"]}
+                        renderCell={(row, column) => column === "date" ? formatDateDDMMYYYY(row.date) : undefined}
+                      />
                       <div className="border-t bg-background px-4 py-2 text-sm font-semibold">
                         Total: {money(total)} <span className="ml-2 text-muted-foreground">(Cash: {money(cash)}, GPay: {money(gpay)})</span>
                       </div>
@@ -1112,7 +1229,7 @@ function VolunteerTable({ rows, expanded, expenses, onToggle, onEdit, onDelete }
                 ) : null}
               </>
             );
-          })}
+          }) : <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No records found</TableCell></TableRow>}
         </TableBody>
       </Table>
     </div>
@@ -1131,15 +1248,31 @@ function FieldEditor({ field, value, options, onChange }: { field: Field; value:
   );
 }
 
-function DataTable({ rows, columns, actions, renderCell, moneyColumns = [], sortableColumns = [], onSort, rowClassName }: { rows: AnyRow[]; columns: string[]; actions?: (row: AnyRow) => React.ReactNode; renderCell?: (row: AnyRow, column: string) => React.ReactNode | undefined; moneyColumns?: string[]; sortableColumns?: string[]; onSort?: (column: string) => void; rowClassName?: string }) {
+function fundColumnClassName(column: string) {
+  const sharedStickyBg = "max-md:bg-card max-md:shadow-[8px_0_12px_-12px_rgba(0,0,0,0.7)]";
+  const classes: Record<string, string> = {
+    type: `max-md:sticky max-md:left-0 max-md:z-20 max-md:w-8 max-md:min-w-8 max-md:max-w-8 max-md:px-1 max-md:text-center ${sharedStickyBg}`,
+    name: `max-md:sticky max-md:left-8 max-md:z-20 max-md:w-[92px] max-md:min-w-[92px] max-md:max-w-[92px] max-md:overflow-hidden max-md:text-ellipsis max-md:whitespace-nowrap max-md:px-1 ${sharedStickyBg}`,
+    houseId: "max-md:w-16 max-md:min-w-16 max-md:max-w-16 max-md:px-1",
+    amount: "max-md:w-20 max-md:min-w-20 max-md:max-w-20 max-md:px-1",
+    __delete: "max-md:w-12 max-md:min-w-12 max-md:max-w-12 max-md:px-1 md:hidden"
+  };
+  return classes[column] || "";
+}
+
+function DataTable({ rows, columns, actions, renderCell, renderHeader, moneyColumns = [], sortableColumns = [], onSort, rowClassName, stickyActions, columnClassName }: { rows: AnyRow[]; columns: string[]; actions?: (row: AnyRow) => React.ReactNode; renderCell?: (row: AnyRow, column: string) => React.ReactNode | undefined; renderHeader?: (column: string) => React.ReactNode | undefined; moneyColumns?: string[]; sortableColumns?: string[]; onSort?: (column: string) => void; rowClassName?: string; stickyActions?: boolean; columnClassName?: (column: string) => string }) {
+  function cellValue(row: AnyRow, column: string) {
+    return renderCell?.(row, column) ?? (moneyColumns.includes(column) ? money(row[column]) : displayCell(row, column));
+  }
+
   return (
     <div className="overflow-x-auto">
       <Table>
         <TableHeader>
-          <TableRow>{columns.map((column) => <TableHead key={column} onClick={() => sortableColumns.includes(column) && onSort?.(column)} className={cn(sortableColumns.includes(column) && "cursor-pointer text-primary")}>{label(column)}</TableHead>)}{actions ? <TableHead>Action</TableHead> : null}</TableRow>
+          <TableRow>{columns.map((column) => <TableHead key={column} onClick={() => sortableColumns.includes(column) && onSort?.(column)} className={cn(sortableColumns.includes(column) && "cursor-pointer text-primary", columnClassName?.(column))}>{renderHeader?.(column) ?? label(column)}</TableHead>)}{actions ? <TableHead className={cn(stickyActions && "max-md:sticky max-md:right-0 max-md:z-30 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]")}>Action</TableHead> : null}</TableRow>
         </TableHeader>
         <TableBody>
-          {rows.length ? rows.map((row) => <TableRow key={rowId(row)} className={rowClassName}>{columns.map((column) => <TableCell key={column}>{renderCell?.(row, column) ?? (moneyColumns.includes(column) ? money(row[column]) : displayCell(row, column))}</TableCell>)}{actions ? <TableCell>{actions(row)}</TableCell> : null}</TableRow>) : <TableRow><TableCell colSpan={columns.length + (actions ? 1 : 0)} className="text-center text-muted-foreground">No records found</TableCell></TableRow>}
+          {rows.length ? rows.map((row) => <TableRow key={rowId(row)} className={rowClassName}>{columns.map((column) => <TableCell key={column} className={columnClassName?.(column)}>{cellValue(row, column)}</TableCell>)}{actions ? <TableCell className={cn(stickyActions && "max-md:sticky max-md:right-0 max-md:z-20 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]")}>{actions(row)}</TableCell> : null}</TableRow>) : <TableRow><TableCell colSpan={columns.length + (actions ? 1 : 0)} className="text-center text-muted-foreground">No records found</TableCell></TableRow>}
         </TableBody>
       </Table>
     </div>
@@ -1153,21 +1286,23 @@ function PaginationControls({ pagination, pageSize, onPageChange, onPageSizeChan
   const end = Math.min(pagination.total || 0, page * pageSize);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t p-3 text-sm">
-      <div className="flex items-center gap-2">
+    <div className="grid gap-3 border-t p-3 text-sm sm:flex sm:flex-wrap sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground">Show</span>
         <SelectBox value={String(pageSize)} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
           {[10, 25, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
         </SelectBox>
         <span className="text-muted-foreground">records per page</span>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground">{start}-{end} of {pagination.total || 0}</span>
-        <Button variant="outline" className="h-8 px-2" disabled={page <= 1} onClick={() => onPageChange(1)}>First</Button>
-        <Button variant="outline" className="h-8 px-2" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Prev</Button>
-        <span className="px-2 font-medium">Page {page} / {totalPages}</span>
-        <Button variant="outline" className="h-8 px-2" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next</Button>
-        <Button variant="outline" className="h-8 px-2" disabled={page >= totalPages} onClick={() => onPageChange(totalPages)}>Last</Button>
+      <div className="grid gap-2 sm:flex sm:items-center">
+        <span className="text-muted-foreground sm:mr-1">{start}-{end} of {pagination.total || 0}</span>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+          <Button variant="outline" className="h-9 min-h-9 px-2 py-1" disabled={page <= 1} onClick={() => onPageChange(1)}>First</Button>
+          <Button variant="outline" className="h-9 min-h-9 px-2 py-1" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Prev</Button>
+          <span className="col-span-2 text-center font-medium sm:px-2">Page {page} / {totalPages}</span>
+          <Button variant="outline" className="h-9 min-h-9 px-2 py-1" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next</Button>
+          <Button variant="outline" className="h-9 min-h-9 px-2 py-1" disabled={page >= totalPages} onClick={() => onPageChange(totalPages)}>Last</Button>
+        </div>
       </div>
     </div>
   );
@@ -1175,10 +1310,10 @@ function PaginationControls({ pagination, pageSize, onPageChange, onPageSizeChan
 
 function Modal({ title, children, onClose, wide }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className={cn("max-h-[90vh] w-full overflow-auto rounded-lg bg-background shadow-xl", wide ? "max-w-4xl" : "max-w-2xl")}>
-        <div className="flex items-center justify-between border-b p-4"><h2 className="font-semibold">{title}</h2><Button variant="ghost" onClick={onClose}>Close</Button></div>
-        <div className="p-4">{children}</div>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 sm:items-center sm:p-4">
+      <div className={cn("max-h-[94vh] w-full overflow-auto rounded-lg bg-background shadow-xl sm:max-h-[90vh]", wide ? "max-w-4xl" : "max-w-2xl")}>
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-background p-3 sm:p-4"><h2 className="min-w-0 break-words font-semibold">{title}</h2><Button variant="ghost" onClick={onClose}>Close</Button></div>
+        <div className="p-3 sm:p-4">{children}</div>
       </div>
     </div>
   );
@@ -1202,7 +1337,7 @@ function UnpaidModal({ houses, onClose, onSelectHouse }: { houses: AnyRow[]; onC
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input className="pl-8" placeholder="Search house" value={search} onChange={(event) => setSearch(event.target.value)} />
         </div>
-        <div className="max-h-[650px] overflow-auto rounded-md border">
+        <div className="max-h-[65vh] overflow-auto rounded-md border">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow><TableHead>House Number</TableHead><TableHead>Owner Name</TableHead><TableHead>Phone</TableHead></TableRow>
@@ -1269,8 +1404,8 @@ Jay Shree Ram`;
     <Modal title="Send Fund Receipt" onClose={onClose}>
       <div className="space-y-2">
         {phones.length ? phones.map((phone) => (
-          <button className="flex w-full items-center justify-between rounded-md border p-3 text-left hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60" disabled={Boolean(sendingPhone)} key={phone} onClick={() => sendReceipt(phone)} type="button">
-            <span>{phone}</span>
+          <button className="flex w-full items-center justify-between gap-3 rounded-md border p-3 text-left hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60" disabled={Boolean(sendingPhone)} key={phone} onClick={() => sendReceipt(phone)} type="button">
+            <span className="min-w-0 break-words">{phone}</span>
             {sendingPhone === phone ? <RefreshCcw className="h-5 w-5 animate-spin text-emerald-700" /> : <WhatsAppIcon />}
           </button>
         )) : <p className="text-sm text-muted-foreground">No phone number found for this fund.</p>}
@@ -1294,7 +1429,8 @@ function label(key: string) {
   const aliases: Record<string, string> = {
     houseId: "House",
     volunteerId: "Volunteer",
-    festivalId: "Festival"
+    festivalId: "Festival",
+    __delete: "Delete"
   };
   if (aliases[key]) return aliases[key];
   return key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase());
@@ -1304,6 +1440,7 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(Boolean(localStorage.getItem("token")));
   const [active, setActive] = useState<ResourceKey>("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
   const role = localStorage.getItem("role");
   const activeResource = useMemo(() => resources.find((resource) => resource.key === active), [active]);
@@ -1326,6 +1463,16 @@ export default function App() {
     return () => window.removeEventListener("auth-expired", handleAuthExpired);
   }, []);
 
+  useEffect(() => {
+    function handleScroll() {
+      setShowScrollTop(window.scrollY > 360);
+    }
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   const currentLogo = theme === "dark" ? logoWhite : logoBlank;
 
   if (!authenticated) return <Login onLogin={() => setAuthenticated(true)} logoSrc={currentLogo} />;
@@ -1342,12 +1489,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 bg-[#343a40] text-white lg:block">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto bg-[#343a40] text-white lg:block">
         <div className="flex h-24 items-center justify-center border-b border-white/10 px-4"><img src={logoWhite} alt="Festival Expense Logo" className="max-h-20 object-contain" /></div>
         <nav className="p-2">{visibleMenu.map((item) => <NavButton key={item.key} icon={item.icon} active={active === item.key} onClick={() => navigate(item.key)} dark>{item.title}</NavButton>)}</nav>
       </aside>
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-10 border-b bg-background/95 px-4 backdrop-blur">
+        <header className="sticky top-0 z-10 border-b bg-background/95 px-3 backdrop-blur sm:px-4">
           <div className="flex min-h-16 items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <Button className="lg:hidden" variant="ghost" size="icon" onClick={() => setMobileMenuOpen((value) => !value)} title={mobileMenuOpen ? "Hide menu" : "Show menu"}>
@@ -1361,7 +1508,7 @@ export default function App() {
                 <button className={cn("hover:text-foreground", active === "reports" && "text-foreground")} onClick={() => navigate("reports")} type="button">Report</button>
               </nav>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-3">
               <Button
                 variant="ghost"
                 size="icon"
@@ -1370,8 +1517,8 @@ export default function App() {
               >
                 {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
-              <a href="https://kplabs.dev" target="_blank" rel="noreferrer" className="inline-flex items-center rounded-md px-2 py-1 hover:bg-muted" title="KP Labs">
-                <img src={kpLabsLogo} alt="KP Labs" className="h-9 w-auto object-contain" />
+              <a href="https://kplab.dev" target="_blank" rel="noreferrer" className="inline-flex items-center rounded-md px-1 py-1 hover:bg-muted sm:px-2" title="KP Labs">
+                <img src={kpLabsLogo} alt="KP Labs" className="h-8 w-auto object-contain dark:invert sm:h-9" />
               </a>
               <Button variant="ghost" onClick={logout}><LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Logout</span></Button>
             </div>
@@ -1382,10 +1529,24 @@ export default function App() {
             </nav>
           ) : null}
         </header>
-        <main className="p-4">
+        <main className="p-3 pb-16 sm:p-4 md:pb-4">
           {active === "dashboard" ? <Dashboard setActive={setActive} /> : active === "funds" ? <FundPage /> : active === "reports" ? <Reports /> : activeResource ? <ResourcePage config={activeResource} /> : null}
         </main>
+        <footer className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-3 py-2 text-center text-xs text-muted-foreground backdrop-blur sm:px-4 md:static md:py-3 md:text-sm">
+          Made with <span className="text-red-600">♥</span> in India &nbsp;|&nbsp;
+          Powered by <a className="font-medium text-primary hover:underline" href="https://kplab.dev" target="_blank" rel="noreferrer">kplab.dev</a>
+        </footer>
       </div>
+      {showScrollTop ? (
+        <Button
+          className="fixed bottom-4 right-4 z-40 rounded-full shadow-lg md:hidden"
+          size="icon"
+          title="Go to top"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        >
+          <ArrowUp className="h-5 w-5" />
+        </Button>
+      ) : null}
     </div>
   );
 }
