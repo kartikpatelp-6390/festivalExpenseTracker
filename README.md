@@ -39,5 +39,10 @@ alembic stamp head
 ```bash
 cd ui
 npm install
+cp .env.example .env.local
 npm run dev
 ```
+
+For local development, Vite reads `ui/.env.local`, which is ignored by git. Set
+`VITE_API_BASE_URL` differently per environment, for example your live host can
+provide its own value during deploy/build.

@@ -3,6 +3,10 @@
 
 api/.env
 
+ui/.env
+ui/.env.*
+!ui/.env.example
+
 ui/package-lock.json
 ui/.pnp.js
 ui/node_modules/
