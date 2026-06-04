@@ -1,0 +1,224 @@
+# Festival Expense Tracker Conversion Instructions
+
+Use this file when asking Codex to continue converting the old project into this new Flask + shadcn app.
+
+## Source Project
+
+Old project path:
+
+```text
+/Users/kp/Public/Projects/festival-expense-tracker
+```
+
+New project path:
+
+```text
+/Users/kp/Public/Projects/festivalExpenseTracker
+```
+
+The old project is the source of truth for:
+
+- UI screens and workflows
+- Page routing and navigation
+- Forms, tables, filters, summaries, and reports
+- API endpoint names and response behavior
+- Business logic and validation
+- Role behavior for admin, non-admin, and volunteer users
+
+Do not remove or rewrite business behavior unless explicitly requested.
+
+## Target Stack
+
+API:
+
+```text
+Flask
+SQLAlchemy
+Alembic
+MySQL
+JWT auth
+```
+
+UI:
+
+```text
+React
+Vite
+TypeScript
+Tailwind CSS
+shadcn-style components
+lucide-react icons
+```
+
+Database:
+
+```text
+Use the existing MySQL schema.
+Do not invent table or column names.
+Keep SQLAlchemy models mapped to the existing snake_case database columns.
+```
+
+## Main Goal
+
+Rebuild the new project so it behaves exactly like the old application, but with:
+
+- Flask API instead of Express
+- React/shadcn UI instead of Angular/AdminLTE/Bootstrap
+- MySQL SQLAlchemy models instead of Mongoose models
+- Alembic migrations for schema tracking
+
+## UI Conversion Rules
+
+When converting UI from the old Angular app:
+
+1. Read the old Angular component `.html`, `.ts`, and `.scss` files first.
+2. Recreate the same page functionality in React.
+3. Use shadcn-style primitives for UI:
+   - buttons
+   - inputs
+   - dialogs
+   - tables
+   - cards only where appropriate
+   - tabs
+   - selects
+   - checkboxes
+   - dropdown menus
+   - pagination
+4. Use `lucide-react` icons for actions such as add, edit, delete, save, download, search, filter, logout, and navigation.
+5. Preserve all fields, labels, filters, actions, summaries, and table columns from the old UI.
+6. Preserve workflow behavior:
+   - login
+   - dashboard
+   - festivals
+   - houses
+   - funds
+   - unpaid houses
+   - volunteer summary
+   - expenses
+   - expense settlement
+   - estimates
+   - inventory
+   - todos
+   - reports
+   - receipt/report downloads where supported
+7. Do not build a marketing landing page.
+8. The first screen after login should be the usable application dashboard.
+9. Keep the interface practical and operational, not decorative.
+10. Make the layout responsive and verify that table/actions/forms do not overlap on mobile.
+
+## API Conversion Rules
+
+When converting backend logic:
+
+1. Read the old Express controller and route before changing Flask code.
+2. Keep the same API route shape under `/api`.
+3. Keep the same request payloads wherever possible.
+4. Keep the same response shape wherever possible.
+5. Preserve pagination behavior:
+   - `page`
+   - `limit`
+   - `search`
+   - `sort`
+   - custom filters
+6. Preserve JWT auth behavior and roles.
+7. Keep compatibility aliases for frontend fields when needed:
+   - `festivalId` maps to `festival_id`
+   - `festivalYear` maps to `festival_year`
+   - `houseId` maps to `house_id`
+   - `volunteerId` maps to `volunteer_id`
+   - `paymentMethod` maps to `payment_method`
+   - `estimatedAmount` maps to `estimated_amount`
+   - `isSettled` maps to `is_settled`
+   - `settledOn` maps to `settled_on`
+   - `createdAt` maps to `created_at`
+   - `updatedAt` maps to `updated_at`
+8. Existing Node bcrypt password hashes must keep working.
+9. Do not assume a fresh database. The existing MySQL schema is already present.
+
+## Database And Alembic Rules
+
+Use SQLAlchemy models that match the existing schema from phpMyAdmin:
+
+- `users`
+- `volunteers`
+- `houses`
+- `festivals`
+- `estimates`
+- `expenses`
+- `fund_transactions`
+- `inventory`
+- `inventory_items`
+- `todos`
+- `short_links`
+
+Expected important columns include:
+
+- `mongo_id`
+- `password_hash`
+- `house_number`
+- `owner_name`
+- `festival_date`
+- `festival_id`
+- `festival_year`
+- `volunteer_id`
+- `house_id`
+- `payment_method`
+- `reference_no`
+- `transaction_date`
+- `expense_date`
+- `estimated_amount`
+- `is_settled`
+- `settled_on`
+- `created_at`
+- `updated_at`
+
+Alembic rules:
+
+1. Maintain migrations in `api/migrations`.
+2. For a fresh database, migrations should create the schema.
+3. For an already-created database, use:
+
+```bash
+alembic stamp head
+```
+
+4. Do not run destructive migrations against the existing DB unless explicitly requested.
+5. If schema differs from the model, inspect the DB first and then update models/migrations deliberately.
+
+## Verification
+
+After changes:
+
+1. Run Python syntax checks.
+2. Run relevant Flask/API smoke checks when the database is available.
+3. Run UI type/build checks after `npm install`.
+4. Start local dev servers when needed:
+
+```bash
+cd api
+source venv/bin/activate
+flask --app run run --host 0.0.0.0 --port 5001
+```
+
+```bash
+cd ui
+VITE_API_BASE_URL=http://localhost:5001/api npm run dev
+```
+
+5. Test in browser at:
+
+```text
+http://localhost:5173
+```
+
+## Preferred Prompt
+
+Use a prompt like this when continuing work:
+
+```text
+Use /Users/kp/Public/Projects/festival-expense-tracker as the old source project.
+Continue converting /Users/kp/Public/Projects/festivalExpenseTracker.
+Recreate the old UI exactly in React with shadcn-style components and preserve every feature, workflow, field, table column, filter, API behavior, and role behavior.
+Use Flask + SQLAlchemy + MySQL on the API side and keep Alembic migrations aligned with the existing MySQL schema.
+```
+
