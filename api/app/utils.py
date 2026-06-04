@@ -6,6 +6,7 @@ from decimal import Decimal
 from datetime import datetime, timezone
 
 import bcrypt
+from flask import current_app
 from PIL import Image
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -487,6 +488,28 @@ def generate_fund_receipt_pdf(fund):
     pdf.save()
     buffer.seek(0)
     return buffer.getvalue()
+
+
+def upload_receipt_to_s3(pdf_buffer, filename):
+    import boto3
+
+    bucket = current_app.config["AWS_S3_BUCKET_NAME"]
+    region = current_app.config["AWS_REGION"]
+    key = f"receipts/{filename}"
+    client_kwargs = {"region_name": region}
+    if current_app.config.get("AWS_ACCESS_KEY_ID") and current_app.config.get("AWS_SECRET_ACCESS_KEY"):
+        client_kwargs.update(
+            aws_access_key_id=current_app.config["AWS_ACCESS_KEY_ID"],
+            aws_secret_access_key=current_app.config["AWS_SECRET_ACCESS_KEY"],
+        )
+    client = boto3.client("s3", **client_kwargs)
+    client.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=pdf_buffer,
+        ContentType="application/pdf",
+    )
+    return f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
 
 
 def model_to_dict(row, include=None):

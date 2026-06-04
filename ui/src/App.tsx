@@ -7,9 +7,7 @@ import {
   Download,
   FileText,
   Home,
-  IndianRupee,
   LogOut,
-  MessageCircle,
   Pencil,
   Plus,
   ReceiptText,
@@ -30,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { API_BASE_URL, api, apiBlob, toQuery } from "@/lib/api";
+import { api, apiBlob, toQuery } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type ResourceKey = "dashboard" | "funds" | "reports" | "festivals" | "house" | "volunteers" | "estimates" | "expenses" | "inventory" | "todos";
@@ -125,7 +123,7 @@ const resources: ResourceConfig[] = [
       { key: "paymentMethod", label: "Payment Method", type: "select", options: ["Cash", "GPay"] },
       { key: "description", label: "Description" },
       { key: "note", label: "Note" },
-      { key: "volunteerId", label: "Volunteer ID", type: "number" },
+      { key: "volunteerId", label: "Volunteer" },
       { key: "isSettled", label: "Settled", type: "checkbox" }
     ]
   },
@@ -191,6 +189,31 @@ function displayCell(row: AnyRow, column: string) {
   return display(value);
 }
 
+function WhatsAppIcon() {
+  return (
+    <span className="inline-flex h-5 w-5 items-center justify-center">
+      <img alt="WhatsApp" className="h-5 w-5 object-contain" src="/assets/whatsapp.svg" />
+    </span>
+  );
+}
+
+function SettlementBadge({ isSettled, disabled, onToggle }: { isSettled: boolean; disabled?: boolean; onToggle: () => void }) {
+  return (
+    <button
+      className={cn(
+        "inline-flex h-6 w-24 items-center justify-center whitespace-nowrap rounded px-2 text-xs font-semibold text-white",
+        isSettled ? "bg-emerald-600 hover:bg-emerald-700" : "bg-destructive hover:bg-destructive/90",
+        disabled && "cursor-not-allowed opacity-50 hover:bg-inherit"
+      )}
+      disabled={disabled}
+      onClick={onToggle}
+      type="button"
+    >
+      {isSettled ? "Settled" : "Not Settled"}
+    </button>
+  );
+}
+
 function sumRows(rows: AnyRow[], field = "amount") {
   return rows.reduce((sum, item) => sum + Number(item[field] || 0), 0);
 }
@@ -212,6 +235,61 @@ function downloadBlob(blob: Blob, filename: string) {
 
 function SelectBox(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={cn("h-9 rounded-md border bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring", props.className)} />;
+}
+
+type SearchableOption = { value: string; label: string; search?: string };
+
+function SearchableSelect({ value, options, placeholder = "Search", disabled, onChange }: { value: string; options: SearchableOption[]; placeholder?: string; disabled?: boolean; onChange: (value: string) => void }) {
+  const selected = options.find((option) => option.value === value);
+  const [query, setQuery] = useState(selected?.label || "");
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setQuery(selected?.label || "");
+  }, [selected?.label]);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const filtered = normalizedQuery
+    ? options.filter((option) => `${option.label} ${option.search || ""}`.toLowerCase().includes(normalizedQuery)).slice(0, 30)
+    : options.slice(0, 30);
+
+  return (
+    <div className="relative">
+      <Input
+        autoComplete="off"
+        disabled={disabled}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onChange={(event) => {
+          const next = event.target.value;
+          setQuery(next);
+          setOpen(true);
+          if (!next) onChange("");
+        }}
+        onFocus={() => !disabled && setOpen(true)}
+        placeholder={placeholder}
+        value={query}
+      />
+      {open && !disabled ? (
+        <div className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-background p-1 shadow-lg">
+          {filtered.length ? filtered.map((option) => (
+            <button
+              className={cn("block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-muted", option.value === value && "bg-muted font-medium")}
+              key={option.value}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(option.value);
+                setQuery(option.label);
+                setOpen(false);
+              }}
+              type="button"
+            >
+              {option.label}
+            </button>
+          )) : <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches found</div>}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function Login({ onLogin, logoSrc }: { onLogin: () => void; logoSrc: string }) {
@@ -383,7 +461,7 @@ function CountBlock({ className, title, value, onMore }: { className: string; ti
   );
 }
 
-function RecentPanel({ title, rows, columns, moneyColumns, addLabel, viewLabel, onAdd, onView, highlight }: { title: string; rows: AnyRow[]; columns: string[]; moneyColumns: string[]; addLabel: string; viewLabel: string; onAdd: () => void; onView: () => void; highlight?: boolean }) {
+function RecentPanel({ title, rows, columns, moneyColumns, addLabel, viewLabel, onAdd, onView, renderCell, highlight }: { title: string; rows: AnyRow[]; columns: string[]; moneyColumns: string[]; addLabel: string; viewLabel: string; onAdd: () => void; onView: () => void; renderCell?: (row: AnyRow, column: string) => React.ReactNode | undefined; highlight?: boolean }) {
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between border-b">
@@ -391,7 +469,7 @@ function RecentPanel({ title, rows, columns, moneyColumns, addLabel, viewLabel, 
         <div className="flex gap-4 text-xl text-muted-foreground"><span>-</span><span>x</span></div>
       </CardHeader>
       <CardContent className="p-0">
-        <DataTable rows={rows} columns={columns} moneyColumns={moneyColumns} rowClassName={highlight ? "bg-emerald-100 hover:bg-emerald-100" : undefined} />
+        <DataTable rows={rows} columns={columns} moneyColumns={moneyColumns} renderCell={renderCell} rowClassName={highlight ? "bg-emerald-100 text-emerald-950 hover:bg-emerald-100 dark:bg-emerald-100 dark:text-emerald-950 dark:hover:bg-emerald-100" : undefined} />
         <div className="flex justify-between gap-2 border-t p-4">
           <Button onClick={onAdd}><Plus className="h-4 w-4" /> {addLabel}</Button>
           <Button variant="outline" onClick={onView}>{viewLabel}</Button>
@@ -416,6 +494,7 @@ function FundPage() {
   const [volunteers, setVolunteers] = useState<AnyRow[]>([]);
   const [modal, setModal] = useState<"form" | "unpaid" | "summary" | "whatsapp" | null>(null);
   const [editing, setEditing] = useState<AnyRow | null>(null);
+  const [draftFund, setDraftFund] = useState<AnyRow | null>(null);
   const [unpaid, setUnpaid] = useState<AnyRow[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [whatsApp, setWhatsApp] = useState<{ fund: AnyRow; phones: string[] } | null>(null);
@@ -471,6 +550,18 @@ function FundPage() {
     setModal("whatsapp");
   }
 
+  function openFundForUnpaidHouse(house: AnyRow) {
+    setEditing(null);
+    setDraftFund({
+      type: "house",
+      houseId: house,
+      name: house.ownerName || "",
+      alternativePhone: house.phone || "",
+      festivalYear: year || currentYear
+    });
+    setModal("form");
+  }
+
   const columns = ["type", "name", "houseId", "amount", "volunteerId", "paymentMethod", "reference"];
 
   return (
@@ -480,7 +571,7 @@ function FundPage() {
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={openSummary}><UsersRound className="h-4 w-4" /> Volunteer Summary</Button>
           <Button variant="outline" onClick={openUnpaid}><Home className="h-4 w-4" /> Unpaid List</Button>
-          <Button onClick={() => { setEditing(null); setModal("form"); }}><Plus className="h-4 w-4" /> Add Fund</Button>
+          <Button onClick={() => { setEditing(null); setDraftFund(null); setModal("form"); }}><Plus className="h-4 w-4" /> Add Fund</Button>
         </div>
       </div>
       <Card>
@@ -510,7 +601,7 @@ function FundPage() {
             actions={(row) => (
               <div className="flex gap-1">
                 <Button variant="outline" size="icon" title="Receipt" onClick={() => downloadReceipt(rowId(row))}><ReceiptText className="h-4 w-4" /></Button>
-                <Button variant="outline" size="icon" title="WhatsApp" onClick={() => openWhatsApp(row)}><MessageCircle className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" title="WhatsApp" onClick={() => openWhatsApp(row)}><WhatsAppIcon /></Button>
                 <Button variant="outline" size="icon" title="Edit" onClick={() => { setEditing(row); setModal("form"); }}><Pencil className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" title="Delete" onClick={() => remove(rowId(row))}><Trash2 className="h-4 w-4" /></Button>
               </div>
@@ -524,33 +615,45 @@ function FundPage() {
           />
         </CardContent>
       </Card>
-      {modal === "form" ? <FundForm fund={editing} volunteers={volunteers} year={year} onClose={() => setModal(null)} onSaved={load} /> : null}
-      {modal === "unpaid" ? <UnpaidModal houses={unpaid} onClose={() => setModal(null)} /> : null}
+      {modal === "form" ? <FundForm fund={editing} initialFund={draftFund} volunteers={volunteers} year={year} onClose={() => { setDraftFund(null); setModal(null); }} onSaved={load} /> : null}
+      {modal === "unpaid" ? <UnpaidModal houses={unpaid} onClose={() => setModal(null)} onSelectHouse={openFundForUnpaidHouse} /> : null}
       {modal === "summary" ? <VolunteerSummaryModal summary={summary} onClose={() => setModal(null)} /> : null}
       {modal === "whatsapp" && whatsApp ? <WhatsAppModal fund={whatsApp.fund} phones={whatsApp.phones} onClose={() => setModal(null)} /> : null}
     </section>
   );
 }
 
-function FundForm({ fund, volunteers, year, onClose, onSaved }: { fund: AnyRow | null; volunteers: AnyRow[]; year: string; onClose: () => void; onSaved: () => void }) {
+function FundForm({ fund, initialFund, volunteers, year, onClose, onSaved }: { fund: AnyRow | null; initialFund?: AnyRow | null; volunteers: AnyRow[]; year: string; onClose: () => void; onSaved: () => void }) {
   const [houses, setHouses] = useState<AnyRow[]>([]);
   const [qrOpen, setQrOpen] = useState(false);
+  const source = fund || initialFund || {};
   const [form, setForm] = useState<AnyRow>({
-    type: fund?.type || "",
-    houseId: rowId(fund?.houseId || {}) || "",
-    name: fund?.name || "",
-    amount: fund?.amount || "",
-    paymentMethod: fund?.paymentMethod || "",
-    reference: fund?.reference || "",
-    date: String(fund?.date || "").slice(0, 10) || new Date().toISOString().slice(0, 10),
-    festivalYear: fund?.festivalYear || year || currentYear,
-    alternativePhone: fund?.alternativePhone || "",
-    volunteerId: rowId(fund?.volunteerId || {}) || ""
+    type: source.type || "",
+    houseId: rowId(source.houseId || {}) || "",
+    name: source.name || "",
+    amount: source.amount || "",
+    paymentMethod: source.paymentMethod || "",
+    reference: source.reference || "",
+    date: String(source.date || "").slice(0, 10) || new Date().toISOString().slice(0, 10),
+    festivalYear: source.festivalYear || year || currentYear,
+    alternativePhone: source.alternativePhone || "",
+    volunteerId: rowId(source.volunteerId || {}) || ""
   });
 
   useEffect(() => {
     api<{ data: AnyRow[] }>("/house?page=1&limit=500").then((res) => setHouses(res.data || [])).catch(() => undefined);
   }, []);
+
+  const houseOptions = houses.map((house) => ({
+    value: rowId(house),
+    label: `${house.houseNumber || ""} - ${house.ownerName || ""}`.trim(),
+    search: `${house.phone || ""} ${house.ownerName || ""} ${house.houseNumber || ""}`
+  }));
+  const volunteerOptions = volunteers.map((volunteer) => ({
+    value: rowId(volunteer),
+    label: volunteer.name || "",
+    search: `${volunteer.phone || ""} ${volunteer.name || ""}`
+  }));
 
   function setValue(key: string, value: string) {
     const next = { ...form, [key]: value };
@@ -592,7 +695,7 @@ function FundForm({ fund, volunteers, year, onClose, onSaved }: { fund: AnyRow |
     <Modal title={fund ? "Edit Fund" : "Add Fund"} onClose={onClose} wide>
       <form className="grid gap-3 md:grid-cols-2" onSubmit={(event) => submit(event)}>
         <Field label="Type"><SelectBox value={form.type} onChange={(event) => setValue("type", event.target.value)} required><option value="">Select</option><option value="house">House</option><option value="sponsor">Sponsor</option><option value="donor">Donor</option><option value="balance">Balance</option><option value="aarti">Aarti</option></SelectBox></Field>
-        <Field label="House"><SelectBox value={form.houseId} onChange={(event) => setValue("houseId", event.target.value)} disabled={form.type !== "house"}><option value="">Select house</option>{houses.map((house) => <option key={rowId(house)} value={rowId(house)}>{house.houseNumber} - {house.ownerName}</option>)}</SelectBox></Field>
+        <Field label="House"><SearchableSelect value={form.houseId} onChange={(value) => setValue("houseId", value)} disabled={form.type !== "house"} options={houseOptions} placeholder="Search house" /></Field>
         <Field label="Name"><Input value={form.name} onChange={(event) => setValue("name", event.target.value)} disabled={form.type === "aarti"} /></Field>
         <Field label="Amount"><Input type="number" value={form.amount} onChange={(event) => setValue("amount", event.target.value)} required /></Field>
         <Field label="Payment Method"><SelectBox value={form.paymentMethod} onChange={(event) => setValue("paymentMethod", event.target.value)} required><option value="">Select</option><option value="Cash">Cash</option><option value="GPay">GPay</option></SelectBox></Field>
@@ -600,7 +703,7 @@ function FundForm({ fund, volunteers, year, onClose, onSaved }: { fund: AnyRow |
         <Field label="Date"><Input type="date" value={form.date} onChange={(event) => setValue("date", event.target.value)} /></Field>
         <Field label="Festival Year"><SelectBox value={form.festivalYear} onChange={(event) => setValue("festivalYear", event.target.value)}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</SelectBox></Field>
         <Field label="Alternative Phone"><Input value={form.alternativePhone} onChange={(event) => setValue("alternativePhone", event.target.value)} /></Field>
-        <Field label="Volunteer"><SelectBox value={form.volunteerId} onChange={(event) => setValue("volunteerId", event.target.value)}><option value="">Select volunteer</option>{volunteers.map((item) => <option key={rowId(item)} value={rowId(item)}>{item.name}</option>)}</SelectBox></Field>
+        <Field label="Volunteer"><SearchableSelect value={form.volunteerId} onChange={(value) => setValue("volunteerId", value)} options={volunteerOptions} placeholder="Search volunteer" /></Field>
         <div className="flex flex-wrap gap-2 md:col-span-2">
           <Button type="submit">Save</Button>
           <Button type="button" variant="secondary" onClick={(event) => submit(event as unknown as FormEvent, "download")}><Download className="h-4 w-4" /> Save & Download</Button>
@@ -760,6 +863,16 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
   const [showForm, setShowForm] = useState(false);
   const [expandedVolunteer, setExpandedVolunteer] = useState<Record<string, boolean>>({});
   const [volunteerExpenses, setVolunteerExpenses] = useState<Record<string, AnyRow[]>>({});
+  const [settlementExpense, setSettlementExpense] = useState<AnyRow | null>(null);
+  const [settlementSaving, setSettlementSaving] = useState(false);
+  const role = localStorage.getItem("role");
+  const currentUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}") as AnyRow;
+    } catch {
+      return {};
+    }
+  })();
 
   async function load() {
     const params: Record<string, string | number | undefined> = { page, limit: pageSize, search };
@@ -800,6 +913,10 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
     const next: AnyRow = {};
     config.fields.forEach((field) => {
       const value = row[field.key];
+      if (field.key === "volunteerId") {
+        next[field.key] = value && typeof value === "object" ? rowId(value) : value == null ? "" : String(value);
+        return;
+      }
       next[field.key] = typeof value === "boolean" ? value : value == null ? "" : String(value).slice(0, field.type === "date" ? 10 : undefined);
     });
     setEditingId(rowId(row));
@@ -831,6 +948,32 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
     await load();
   }
 
+  function expenseVolunteerId(expense: AnyRow) {
+    const volunteer = expense.volunteerId || expense.volunteer;
+    if (volunteer && typeof volunteer === "object") return rowId(volunteer);
+    return String(volunteer || "");
+  }
+
+  function canToggleSettlement(expense: AnyRow) {
+    return role === "admin" || (role === "volunteer" && currentUser?.id === expenseVolunteerId(expense));
+  }
+
+  async function confirmExpenseSettlement() {
+    if (!settlementExpense) return;
+    const isSettled = Boolean(settlementExpense.isSettled);
+    setSettlementSaving(true);
+    try {
+      await api("/expenses/settle", {
+        method: "PUT",
+        body: JSON.stringify({ expenseId: rowId(settlementExpense), isSettled: !isSettled })
+      });
+      setSettlementExpense(null);
+      await load();
+    } finally {
+      setSettlementSaving(false);
+    }
+  }
+
   async function toggleVolunteerExpenses(volunteer: AnyRow) {
     const id = rowId(volunteer);
     setExpandedVolunteer((current) => ({ ...current, [id]: !current[id] }));
@@ -843,7 +986,7 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
   return (
     <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
       <div id="resource-form" className={cn("xl:hidden", showForm ? "block" : "hidden")}>
-        <ResourceFormCard config={config} editingId={editingId} form={form} setForm={setForm} onSave={save} onClear={() => { setForm({}); setEditingId(null); setShowForm(false); }} />
+        <ResourceFormCard config={config} editingId={editingId} form={form} relationOptions={{ volunteerId: volunteers.map((volunteer) => ({ value: rowId(volunteer), label: volunteer.name || "", search: `${volunteer.phone || ""} ${volunteer.name || ""}` })) }} setForm={setForm} onSave={save} onClear={() => { setForm({}); setEditingId(null); setShowForm(false); }} />
       </div>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -868,7 +1011,15 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
           {config.key === "volunteers" ? (
             <VolunteerTable rows={rows} expanded={expandedVolunteer} expenses={volunteerExpenses} onToggle={toggleVolunteerExpenses} onEdit={edit} onDelete={(row) => remove(rowId(row))} />
           ) : (
-            <DataTable rows={rows} columns={config.columns} moneyColumns={["amount", "estimatedAmount"]} actions={(row) => <div className="flex gap-1"><Button variant="outline" size="icon" onClick={() => edit(row)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => remove(rowId(row))}><Trash2 className="h-4 w-4" /></Button></div>} />
+            <DataTable
+              rows={rows}
+              columns={config.columns}
+              moneyColumns={["amount", "estimatedAmount"]}
+              renderCell={(row, column) => config.key === "expenses" && column === "isSettled" ? (
+                <SettlementBadge disabled={!canToggleSettlement(row)} isSettled={Boolean(row.isSettled)} onToggle={() => setSettlementExpense(row)} />
+              ) : undefined}
+              actions={(row) => <div className="flex gap-1"><Button variant="outline" size="icon" onClick={() => edit(row)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => remove(rowId(row))}><Trash2 className="h-4 w-4" /></Button></div>}
+            />
           )}
           <PaginationControls
             pagination={pagination}
@@ -879,19 +1030,49 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
         </CardContent></Card>
       </div>
       <div className="hidden xl:block" id="resource-form-desktop">
-        <ResourceFormCard config={config} editingId={editingId} form={form} setForm={setForm} onSave={save} onClear={() => { setForm({}); setEditingId(null); }} />
+        <ResourceFormCard config={config} editingId={editingId} form={form} relationOptions={{ volunteerId: volunteers.map((volunteer) => ({ value: rowId(volunteer), label: volunteer.name || "", search: `${volunteer.phone || ""} ${volunteer.name || ""}` })) }} setForm={setForm} onSave={save} onClear={() => { setForm({}); setEditingId(null); }} />
       </div>
+      {settlementExpense ? (
+        <SettlementConfirmModal
+          expense={settlementExpense}
+          loading={settlementSaving}
+          onClose={() => !settlementSaving && setSettlementExpense(null)}
+          onConfirm={confirmExpenseSettlement}
+        />
+      ) : null}
     </section>
   );
 }
 
-function ResourceFormCard({ config, editingId, form, setForm, onSave, onClear }: { config: ResourceConfig; editingId: string | null; form: AnyRow; setForm: React.Dispatch<React.SetStateAction<AnyRow>>; onSave: (event: FormEvent) => void; onClear: () => void }) {
+function SettlementConfirmModal({ expense, loading, onClose, onConfirm }: { expense: AnyRow; loading: boolean; onClose: () => void; onConfirm: () => void }) {
+  const isSettled = Boolean(expense.isSettled);
+  const action = isSettled ? "unsettle" : "settle";
+  return (
+    <Modal title="Confirm Settlement" onClose={onClose}>
+      <div className="space-y-4">
+        <p className="text-sm">
+          Are you sure want to {action} this expense?
+        </p>
+        <div className="rounded-md border bg-muted/40 p-3 text-sm">
+          <p><strong>{display(expense.category || expense.description || "Expense")}</strong></p>
+          <p className="text-muted-foreground">{money(expense.amount)}</p>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button disabled={loading} variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={loading} onClick={onConfirm}>{loading ? "Updating..." : action.charAt(0).toUpperCase() + action.slice(1)}</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ResourceFormCard({ config, editingId, form, relationOptions = {}, setForm, onSave, onClear }: { config: ResourceConfig; editingId: string | null; form: AnyRow; relationOptions?: Record<string, SearchableOption[]>; setForm: React.Dispatch<React.SetStateAction<AnyRow>>; onSave: (event: FormEvent) => void; onClear: () => void }) {
   return (
     <Card>
       <CardHeader><CardTitle>{editingId ? "Edit" : "Add"} {config.title}</CardTitle></CardHeader>
       <CardContent>
         <form className="space-y-3" onSubmit={onSave}>
-          {config.fields.map((field) => <FieldEditor key={field.key} field={field} value={form[field.key]} onChange={(value) => setForm((current: AnyRow) => ({ ...current, [field.key]: value }))} />)}
+          {config.fields.map((field) => <FieldEditor key={field.key} field={field} options={relationOptions[field.key]} value={form[field.key]} onChange={(value) => setForm((current: AnyRow) => ({ ...current, [field.key]: value }))} />)}
           <div className="flex gap-2"><Button type="submit">{editingId ? "Update" : "Create"}</Button><Button type="button" variant="outline" onClick={onClear}>Clear</Button></div>
         </form>
       </CardContent>
@@ -938,18 +1119,19 @@ function VolunteerTable({ rows, expanded, expenses, onToggle, onEdit, onDelete }
   );
 }
 
-function FieldEditor({ field, value, onChange }: { field: Field; value: any; onChange: (value: any) => void }) {
+function FieldEditor({ field, value, options, onChange }: { field: Field; value: any; options?: SearchableOption[]; onChange: (value: any) => void }) {
   return (
     <label className="grid gap-1 text-sm">
       <span className="font-medium">{field.label}</span>
-      {field.type === "checkbox" ? <input className="h-5 w-5 accent-primary" type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} /> :
+      {options ? <SearchableSelect value={String(value ?? "")} onChange={onChange} options={options} placeholder={`Search ${field.label.toLowerCase()}`} /> :
+        field.type === "checkbox" ? <input className="h-5 w-5 accent-primary" type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} /> :
         field.type === "select" ? <SelectBox value={String(value ?? "")} onChange={(event) => onChange(event.target.value)}><option value="">Select</option>{(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}</SelectBox> :
           <Input type={field.type || "text"} value={String(value ?? "")} onChange={(event) => onChange(event.target.value)} />}
     </label>
   );
 }
 
-function DataTable({ rows, columns, actions, moneyColumns = [], sortableColumns = [], onSort, rowClassName }: { rows: AnyRow[]; columns: string[]; actions?: (row: AnyRow) => React.ReactNode; moneyColumns?: string[]; sortableColumns?: string[]; onSort?: (column: string) => void; rowClassName?: string }) {
+function DataTable({ rows, columns, actions, renderCell, moneyColumns = [], sortableColumns = [], onSort, rowClassName }: { rows: AnyRow[]; columns: string[]; actions?: (row: AnyRow) => React.ReactNode; renderCell?: (row: AnyRow, column: string) => React.ReactNode | undefined; moneyColumns?: string[]; sortableColumns?: string[]; onSort?: (column: string) => void; rowClassName?: string }) {
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -957,7 +1139,7 @@ function DataTable({ rows, columns, actions, moneyColumns = [], sortableColumns 
           <TableRow>{columns.map((column) => <TableHead key={column} onClick={() => sortableColumns.includes(column) && onSort?.(column)} className={cn(sortableColumns.includes(column) && "cursor-pointer text-primary")}>{label(column)}</TableHead>)}{actions ? <TableHead>Action</TableHead> : null}</TableRow>
         </TableHeader>
         <TableBody>
-          {rows.length ? rows.map((row) => <TableRow key={rowId(row)} className={rowClassName}>{columns.map((column) => <TableCell key={column}>{moneyColumns.includes(column) ? money(row[column]) : displayCell(row, column)}</TableCell>)}{actions ? <TableCell>{actions(row)}</TableCell> : null}</TableRow>) : <TableRow><TableCell colSpan={columns.length + (actions ? 1 : 0)} className="text-center text-muted-foreground">No records found</TableCell></TableRow>}
+          {rows.length ? rows.map((row) => <TableRow key={rowId(row)} className={rowClassName}>{columns.map((column) => <TableCell key={column}>{renderCell?.(row, column) ?? (moneyColumns.includes(column) ? money(row[column]) : displayCell(row, column))}</TableCell>)}{actions ? <TableCell>{actions(row)}</TableCell> : null}</TableRow>) : <TableRow><TableCell colSpan={columns.length + (actions ? 1 : 0)} className="text-center text-muted-foreground">No records found</TableCell></TableRow>}
         </TableBody>
       </Table>
     </div>
@@ -1006,8 +1188,39 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <label className="grid gap-1 text-sm"><span className="font-medium">{label}</span>{children}</label>;
 }
 
-function UnpaidModal({ houses, onClose }: { houses: AnyRow[]; onClose: () => void }) {
-  return <Modal title="Unpaid Houses" onClose={onClose} wide><DataTable rows={houses} columns={["houseNumber", "ownerName", "phone"]} /></Modal>;
+function UnpaidModal({ houses, onClose, onSelectHouse }: { houses: AnyRow[]; onClose: () => void; onSelectHouse: (house: AnyRow) => void }) {
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLowerCase();
+  const filtered = normalizedSearch
+    ? houses.filter((house) => `${house.houseNumber || ""} ${house.ownerName || ""} ${house.phone || ""}`.toLowerCase().includes(normalizedSearch))
+    : houses;
+
+  return (
+    <Modal title="Unpaid Houses" onClose={onClose} wide>
+      <div className="space-y-3">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input className="pl-8" placeholder="Search house" value={search} onChange={(event) => setSearch(event.target.value)} />
+        </div>
+        <div className="max-h-[650px] overflow-auto rounded-md border">
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-background">
+              <TableRow><TableHead>House Number</TableHead><TableHead>Owner Name</TableHead><TableHead>Phone</TableHead></TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length ? filtered.map((house) => (
+                <TableRow className="cursor-pointer" key={rowId(house)} onClick={() => onSelectHouse(house)}>
+                  <TableCell className="py-1.5">{house.houseNumber}</TableCell>
+                  <TableCell className="py-1.5">{house.ownerName}</TableCell>
+                  <TableCell className="py-1.5">{house.phone}</TableCell>
+                </TableRow>
+              )) : <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">No houses found</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </Modal>
+  );
 }
 
 function VolunteerSummaryModal({ summary, onClose }: { summary: any; onClose: () => void }) {
@@ -1024,11 +1237,44 @@ function VolunteerSummaryModal({ summary, onClose }: { summary: any; onClose: ()
 
 function WhatsAppModal({ fund, phones, onClose }: { fund: AnyRow; phones: string[]; onClose: () => void }) {
   const id = rowId(fund);
-  const text = encodeURIComponent(`Festival fund receipt for ${fund.name || "your contribution"} of ${money(fund.amount)}. Receipt: ${API_BASE_URL}/funds/download/${id}?action=download`);
+  const [sendingPhone, setSendingPhone] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  async function sendReceipt(phone: string) {
+    setError("");
+    setSendingPhone(phone);
+    try {
+      const res = await api<{ url: string }>(`/funds/download/${id}?action=send`);
+      const message = `Thank you for your contribution!
+
+Get your collection receipt from the link below:
+${res.url}
+
+Jay Shree Ram`;
+      let whatsAppPhone = String(phone).replace(/\D/g, "");
+      if (whatsAppPhone && !whatsAppPhone.startsWith("91")) {
+        whatsAppPhone = `91${whatsAppPhone}`;
+      }
+      const params = new URLSearchParams({ text: message });
+      window.open(`https://wa.me/${whatsAppPhone}?${params.toString()}`, "_blank");
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate receipt");
+    } finally {
+      setSendingPhone(null);
+    }
+  }
+
   return (
     <Modal title="Send Fund Receipt" onClose={onClose}>
       <div className="space-y-2">
-        {phones.length ? phones.map((phone) => <a className="flex items-center justify-between rounded-md border p-3 hover:bg-muted" key={phone} href={`https://wa.me/${String(phone).replace(/\D/g, "")}?text=${text}`} target="_blank" rel="noreferrer"><span>{phone}</span><MessageCircle className="h-5 w-5 text-emerald-700" /></a>) : <p className="text-sm text-muted-foreground">No phone number found for this fund.</p>}
+        {phones.length ? phones.map((phone) => (
+          <button className="flex w-full items-center justify-between rounded-md border p-3 text-left hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60" disabled={Boolean(sendingPhone)} key={phone} onClick={() => sendReceipt(phone)} type="button">
+            <span>{phone}</span>
+            {sendingPhone === phone ? <RefreshCcw className="h-5 w-5 animate-spin text-emerald-700" /> : <WhatsAppIcon />}
+          </button>
+        )) : <p className="text-sm text-muted-foreground">No phone number found for this fund.</p>}
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
     </Modal>
   );

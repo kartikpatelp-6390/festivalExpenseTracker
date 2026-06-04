@@ -1,19 +1,22 @@
 from flask import Blueprint, Response, abort, jsonify, request
 from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
-from sqlalchemy import func
+from sqlalchemy import asc, desc, func, or_
 
 from ..extensions import db
 from ..models import Estimate, Expense, Festival, FundTransaction, House, InventoryItem, Todo, Volunteer
 from ..utils import (
     generate_fund_receipt_pdf,
     get_by_public_id,
+    model_attr_name,
     model_to_dict,
     normalize_payload,
     normalize_phone,
+    parse_bool,
     resolve_public_id,
     serialize_with_relations,
     now_utc,
     query_helper,
+    upload_receipt_to_s3,
 )
 
 
@@ -267,19 +270,70 @@ def funds_summary_by_volunteers():
 @jwt_required()
 def list_funds():
     args = relation_query_args(request.args, {"houseId": House, "volunteerId": Volunteer})
-    result = query_helper(FundTransaction, args, ["name", "reference"])
-    ids = [item["id"] for item in result["data"]]
-    rows = FundTransaction.query.filter(FundTransaction.id.in_(ids or [0])).all()
-    by_id = {row.id: row for row in rows}
-    result["data"] = []
-    for item_id in ids:
-        row = by_id.get(item_id)
-        if not row:
-            continue
+    query = FundTransaction.query.outerjoin(House, FundTransaction.houseId == House.id).outerjoin(Volunteer, FundTransaction.volunteerId == Volunteer.id)
+
+    filters = {
+        key: parse_bool(value)
+        for key, value in args.items()
+        if key not in {"page", "limit", "sort", "search", "startDate", "endDate"} and value not in {"", None}
+    }
+    for key, value in filters.items():
+        attr_name = model_attr_name(FundTransaction, key)
+        if attr_name:
+            query = query.filter(getattr(FundTransaction, attr_name) == value)
+
+    search = args.get("search")
+    if search:
+        like = f"%{search}%"
+        query = query.filter(or_(
+            FundTransaction.type.ilike(like),
+            FundTransaction.name.ilike(like),
+            FundTransaction.paymentMethod.ilike(like),
+            FundTransaction.reference.ilike(like),
+            FundTransaction.alternativePhone.ilike(like),
+            House.houseNumber.ilike(like),
+            House.ownerName.ilike(like),
+            House.phone.ilike(like),
+            Volunteer.name.ilike(like),
+            Volunteer.phone.ilike(like),
+        ))
+
+    start_date = args.get("startDate")
+    end_date = args.get("endDate")
+    if start_date:
+        query = query.filter(FundTransaction.date >= start_date)
+    if end_date:
+        query = query.filter(FundTransaction.date <= f"{end_date} 23:59:59")
+
+    total = query.count()
+    sort = args.get("sort", "-createdAt")
+    sort_desc = sort.startswith("-")
+    sort_name = model_attr_name(FundTransaction, sort[1:] if sort_desc else sort) or (sort[1:] if sort_desc else sort)
+    if hasattr(FundTransaction, sort_name):
+        column = getattr(FundTransaction, sort_name)
+        query = query.order_by(desc(column) if sort_desc else asc(column))
+
+    has_pagination = "page" in args and "limit" in args
+    page = int(args.get("page", 1) or 1)
+    limit = int(args.get("limit", 10) or 10)
+    if has_pagination:
+        query = query.offset((page - 1) * limit).limit(limit)
+
+    rows = query.all()
+    result_data = []
+    for row in rows:
         data = serialize_with_relations(row, {"houseId": "house", "volunteerId": "volunteer"})
         if row.type == "house" and row.house and not row.name and row.house.ownerName:
             data["name"] = row.house.ownerName
-        result["data"].append(data)
+        result_data.append(data)
+    result = {"data": result_data}
+    if has_pagination:
+        result["pagination"] = {
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "totalPages": (total + limit - 1) // limit,
+        }
     return jsonify({"success": True, **result})
 
 
@@ -316,11 +370,12 @@ def delete_fund(item_id):
 def download_receipt(item_id):
     fund = row_or_404(FundTransaction, item_id)
     action = request.args.get("action", "download")
-    if action == "send":
-        public_value = fund.mongoId or fund.id
-        return jsonify({"url": f"{request.url_root.rstrip('/')}/api/funds/download/{public_value}"})
-
     pdf = generate_fund_receipt_pdf(fund)
+    if action == "send":
+        receipt_id = fund.mongoId or fund.id
+        url = upload_receipt_to_s3(pdf, f"receipt_{receipt_id}.pdf")
+        return jsonify({"url": url})
+
     return Response(
         pdf,
         mimetype="application/pdf",
