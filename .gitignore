@@ -1,0 +1,11 @@
+.codex/
+.DS_Store
+
+api/.env
+
+ui/package-lock.json
+ui/.pnp.js
+ui/node_modules/
+ui/dist/
+
+ui/yarn.lock
