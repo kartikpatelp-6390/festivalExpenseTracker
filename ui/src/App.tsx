@@ -53,11 +53,18 @@ const logoBlank = "/assets/festival_logo_blank.png";
 const logoWhite = "/assets/festival_logo_white.png";
 const gpayQr = "/assets/GooglePay_QR.PNG";
 const kpLabsLogo = "/assets/kplabs.svg";
+const activePageStorageKey = "activePage";
 
 function getInitialTheme() {
   const savedTheme = localStorage.getItem("theme");
   if (savedTheme === "dark" || savedTheme === "light") return savedTheme;
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function getInitialActivePage(): ResourceKey {
+  const savedPage = localStorage.getItem(activePageStorageKey) as ResourceKey | null;
+  const validPages: ResourceKey[] = ["dashboard", "funds", "reports", ...resources.map((resource) => resource.key)];
+  return savedPage && validPages.includes(savedPage) ? savedPage : "dashboard";
 }
 
 const resources: ResourceConfig[] = [
@@ -259,7 +266,7 @@ function SelectBox(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
     <select
       {...props}
       className={cn(
-        "h-10 w-full max-w-full appearance-none rounded-md border bg-background bg-[linear-gradient(45deg,transparent_50%,currentColor_50%),linear-gradient(135deg,currentColor_50%,transparent_50%)] bg-[length:5px_5px,5px_5px] bg-[position:calc(100%-18px)_50%,calc(100%-13px)_50%] bg-no-repeat px-3 pr-9 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:w-auto sm:text-sm",
+        "h-10 w-full max-w-full appearance-none rounded-md border bg-background bg-[linear-gradient(45deg,transparent_50%,currentColor_50%),linear-gradient(135deg,currentColor_50%,transparent_50%)] bg-[length:5px_5px,5px_5px] bg-[position:calc(100%-18px)_50%,calc(100%-13px)_50%] bg-no-repeat px-3 pr-9 text-base shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-sm",
         props.className
       )}
     />
@@ -409,7 +416,7 @@ function Dashboard({ setActive }: { setActive: (key: ResourceKey) => void }) {
           <strong className="text-lg sm:text-xl">{money(balance)}</strong>
           <AnimatedProgressMeter progress={progress} start={0} end={fundTotal} />
         </div>
-        <SelectBox value={year} onChange={(event) => setYear(event.target.value)}>
+        <SelectBox className="sm:w-auto" value={year} onChange={(event) => setYear(event.target.value)}>
           <option value="">All</option>
           {years.map((item) => <option key={item} value={item}>{item}</option>)}
         </SelectBox>
@@ -667,8 +674,8 @@ function FundPage() {
         <CardContent className="space-y-3 pt-4">
           <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
             <Button className="w-full sm:w-auto" variant="outline" onClick={() => setSort("-createdAt")}><RefreshCcw className="h-4 w-4" /> Reset Sort</Button>
-            <SelectBox value={year} onChange={(event) => setYear(event.target.value)}><option value="">All</option>{years.map((item) => <option key={item} value={item}>{item}</option>)}</SelectBox>
-            <SelectBox value={volunteerId} onChange={(event) => setVolunteerId(event.target.value)}>
+            <SelectBox className="sm:w-auto" value={year} onChange={(event) => setYear(event.target.value)}><option value="">All</option>{years.map((item) => <option key={item} value={item}>{item}</option>)}</SelectBox>
+            <SelectBox className="sm:w-auto" value={volunteerId} onChange={(event) => setVolunteerId(event.target.value)}>
               <option value="">All Volunteers</option>
               {volunteers.map((volunteer) => <option key={rowId(volunteer)} value={rowId(volunteer)}>{volunteer.name}</option>)}
             </SelectBox>
@@ -875,7 +882,7 @@ function Reports() {
         <CardContent className="grid gap-3 pt-4 sm:flex sm:flex-wrap sm:items-end sm:justify-between">
           <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-end">
             <Field label="Filter Year">
-              <SelectBox className="w-32" value={year} onChange={(event) => setYear(event.target.value)}>
+              <SelectBox className="sm:w-32" value={year} onChange={(event) => setYear(event.target.value)}>
                 <option value="">All</option>
                 {years.map((item) => <option key={item} value={item}>{item}</option>)}
               </SelectBox>
@@ -887,66 +894,66 @@ function Reports() {
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="overflow-x-auto p-5">
-          <Table>
+        <CardContent className="overflow-x-auto p-2 sm:p-5">
+          <Table className="min-w-[680px]">
             <TableHeader>
               <TableRow className="border-[#343a40] bg-[#212529] hover:bg-[#212529]">
-                <TableHead className="h-11 text-center text-base font-bold text-white">Title</TableHead>
-                <TableHead className="h-11 text-center text-base font-bold text-white">Income</TableHead>
-                <TableHead className="h-11 text-center text-base font-bold text-white">Expense</TableHead>
+                <TableHead className="h-11 text-center text-sm font-bold text-white sm:text-base">Title</TableHead>
+                <TableHead className="h-11 text-center text-sm font-bold text-white sm:text-base">Income</TableHead>
+                <TableHead className="h-11 text-center text-sm font-bold text-white sm:text-base">Expense</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow className="h-10">
-                <TableCell className="py-2 text-base font-bold">Total Income</TableCell>
-                <TableCell className="py-2 text-right text-base font-bold">{money(reportData.income)}</TableCell>
+                <TableCell className="py-2 text-sm font-bold sm:text-base">Total Income</TableCell>
+                <TableCell className="py-2 text-right text-sm font-bold sm:text-base">{money(reportData.income)}</TableCell>
                 <TableCell />
               </TableRow>
               {incomeKeys.map((key) => (
                 <TableRow className="h-10" key={key}>
-                  <TableCell className="py-2 pr-4 text-right text-base italic">{incomeLabel(key)}</TableCell>
-                  <TableCell className="py-2 text-right text-base">{money(reportData.incomeGroup[key].total)}</TableCell>
+                  <TableCell className="py-2 pr-4 text-right text-sm italic sm:text-base">{incomeLabel(key)}</TableCell>
+                  <TableCell className="py-2 text-right text-sm sm:text-base">{money(reportData.incomeGroup[key].total)}</TableCell>
                   <TableCell />
                 </TableRow>
               ))}
               {festivalKeys.map((festival) => (
                 <Fragment key={festival}>
                   <TableRow className="h-10 bg-[#b8dcff] hover:bg-[#b8dcff]">
-                    <TableCell className="py-2 text-base font-bold text-black" colSpan={3}>{festival}</TableCell>
+                    <TableCell className="py-2 text-sm font-bold text-black sm:text-base" colSpan={3}>{festival}</TableCell>
                   </TableRow>
                   {Object.keys(reportData.expenses[festival] || {}).map((category) => (
                     <Fragment key={`${festival}-${category}`}>
                       <TableRow className="h-10 bg-[#e4ebf2] hover:bg-[#e4ebf2] dark:bg-[#263443] dark:hover:bg-[#263443]">
-                        <TableCell className="py-2 pr-6 text-right text-base italic text-slate-950 dark:text-slate-100">{category}</TableCell>
+                        <TableCell className="py-2 pr-6 text-right text-sm italic text-slate-950 dark:text-slate-100 sm:text-base">{category}</TableCell>
                         <TableCell />
-                        <TableCell className="py-2 pr-4 text-right text-base font-bold text-slate-950 dark:text-slate-100">{money(reportData.expenses[festival][category].total)}</TableCell>
+                        <TableCell className="py-2 pr-4 text-right text-sm font-bold text-slate-950 dark:text-slate-100 sm:text-base">{money(reportData.expenses[festival][category].total)}</TableCell>
                       </TableRow>
                       {(reportData.expenses[festival][category].items || []).map((item: AnyRow, index: number) => (
                         <TableRow className="h-10" key={`${festival}-${category}-${index}`}>
-                          <TableCell className="py-2 pr-4 text-right text-base">{item.title || item.description || "-"}</TableCell>
+                          <TableCell className="py-2 pr-4 text-right text-sm sm:text-base">{item.title || item.description || "-"}</TableCell>
                           <TableCell />
-                          <TableCell className="py-2 text-right text-base">{money(item.amount)}</TableCell>
+                          <TableCell className="py-2 text-right text-sm sm:text-base">{money(item.amount)}</TableCell>
                         </TableRow>
                       ))}
                     </Fragment>
                   ))}
                   <TableRow className="h-10">
-                    <TableCell className="py-2 pr-4 text-right text-base font-bold">Subtotal - {festival}</TableCell>
+                    <TableCell className="py-2 pr-4 text-right text-sm font-bold sm:text-base">Subtotal - {festival}</TableCell>
                     <TableCell />
-                    <TableCell className="py-2 text-right text-base font-bold">{money(festivalTotal(reportData.expenses[festival]))}</TableCell>
+                    <TableCell className="py-2 text-right text-sm font-bold sm:text-base">{money(festivalTotal(reportData.expenses[festival]))}</TableCell>
                   </TableRow>
                   <TableRow className="h-3"><TableCell className="py-1" colSpan={3} /></TableRow>
                 </Fragment>
               ))}
               <TableRow className="h-10">
-                <TableCell className="py-2 text-base font-bold">Total</TableCell>
-                <TableCell className="py-2 text-right text-base font-bold">{money(reportData.income)}</TableCell>
-                <TableCell className="py-2 text-right text-base font-bold">{money(reportData.totalExpense)}</TableCell>
+                <TableCell className="py-2 text-sm font-bold sm:text-base">Total</TableCell>
+                <TableCell className="py-2 text-right text-sm font-bold sm:text-base">{money(reportData.income)}</TableCell>
+                <TableCell className="py-2 text-right text-sm font-bold sm:text-base">{money(reportData.totalExpense)}</TableCell>
               </TableRow>
               <TableRow className="h-10">
-                <TableCell className="py-2 text-base font-bold">Balance</TableCell>
+                <TableCell className="py-2 text-sm font-bold sm:text-base">Balance</TableCell>
                 <TableCell />
-                <TableCell className={cn("py-2 text-right text-base font-bold", Number(reportData.balance || 0) >= 0 ? "text-emerald-600" : "text-rose-600")}>{money(reportData.balance)}</TableCell>
+                <TableCell className={cn("py-2 text-right text-sm font-bold sm:text-base", Number(reportData.balance || 0) >= 0 ? "text-emerald-600" : "text-rose-600")}>{money(reportData.balance)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -1096,30 +1103,30 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
   }
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-      <div id="resource-form" className={cn("xl:hidden", showForm ? "block" : "hidden")}>
+    <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div id="resource-form" className={cn("min-w-0 xl:hidden", showForm ? "block" : "hidden")}>
         <ResourceFormCard config={config} editingId={editingId} form={form} relationOptions={{ volunteerId: volunteers.map((volunteer) => ({ value: rowId(volunteer), label: volunteer.name || "", search: `${volunteer.phone || ""} ${volunteer.name || ""}` })) }} setForm={setForm} onSave={save} onClear={() => { setForm({}); setEditingId(null); setShowForm(false); }} />
       </div>
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-semibold">{config.title} List</h1>
           <Button className="w-full sm:w-auto" onClick={openForm}><Plus className="h-4 w-4" /> {`Add ${config.title}`}</Button>
         </div>
         <Card>
           <CardContent className="grid gap-2 pt-4 sm:flex sm:flex-wrap sm:items-center">
-            {config.key === "festivals" || config.key === "estimates" || config.key === "expenses" ? <SelectBox value={year} onChange={(event) => { setYear(event.target.value); if (event.target.value) setFestivalId(""); }}><option value="">All</option>{years.map((item) => <option key={item} value={item}>{item}</option>)}</SelectBox> : null}
-            {config.key === "estimates" || config.key === "expenses" ? <SelectBox value={festivalId} onChange={(event) => { setFestivalId(event.target.value); if (event.target.value) setYear(""); }}><option value="">All Festivals</option>{festivals.map((festival) => <option key={rowId(festival)} value={rowId(festival)}>{festival.name} ({festival.year})</option>)}</SelectBox> : null}
-            {config.key === "expenses" ? <SelectBox value={volunteerId} onChange={(event) => setVolunteerId(event.target.value)}><option value="">All Volunteers</option>{volunteers.map((volunteer) => <option key={rowId(volunteer)} value={rowId(volunteer)}>{volunteer.name}</option>)}</SelectBox> : null}
+            {config.key === "festivals" || config.key === "estimates" || config.key === "expenses" ? <SelectBox className="sm:w-auto" value={year} onChange={(event) => { setYear(event.target.value); if (event.target.value) setFestivalId(""); }}><option value="">All</option>{years.map((item) => <option key={item} value={item}>{item}</option>)}</SelectBox> : null}
+            {config.key === "estimates" || config.key === "expenses" ? <SelectBox className="sm:w-56" value={festivalId} onChange={(event) => { setFestivalId(event.target.value); if (event.target.value) setYear(""); }}><option value="">All Festivals</option>{festivals.map((festival) => <option key={rowId(festival)} value={rowId(festival)}>{festival.name} ({festival.year})</option>)}</SelectBox> : null}
+            {config.key === "expenses" ? <SelectBox className="sm:w-48" value={volunteerId} onChange={(event) => setVolunteerId(event.target.value)}><option value="">All Volunteers</option>{volunteers.map((volunteer) => <option key={rowId(volunteer)} value={rowId(volunteer)}>{volunteer.name}</option>)}</SelectBox> : null}
             {config.key === "estimates" || config.key === "expenses" ? <Input className="sm:w-36" placeholder="Search amount" value={amount} onChange={(event) => setAmount(event.target.value)} /> : null}
-            {config.key === "todos" ? <SelectBox value={todoStatus} onChange={(event) => setTodoStatus(event.target.value)}><option value="">All</option><option value="false">Pending</option><option value="true">Completed</option></SelectBox> : null}
-            {config.key === "todos" ? <SelectBox value={todoSort} onChange={(event) => setTodoSort(event.target.value)}><option value="desc">Latest First</option><option value="asc">Oldest First</option></SelectBox> : null}
+            {config.key === "todos" ? <SelectBox className="sm:w-auto" value={todoStatus} onChange={(event) => setTodoStatus(event.target.value)}><option value="">All</option><option value="false">Pending</option><option value="true">Completed</option></SelectBox> : null}
+            {config.key === "todos" ? <SelectBox className="sm:w-auto" value={todoSort} onChange={(event) => setTodoSort(event.target.value)}><option value="desc">Latest First</option><option value="asc">Oldest First</option></SelectBox> : null}
             <div className="relative w-full sm:w-48">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input className="pl-8" placeholder="Search" value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
           </CardContent>
         </Card>
-        <Card><CardContent className="p-0">
+        <Card className="min-w-0 overflow-hidden"><CardContent className="min-w-0 p-0">
           {config.key === "volunteers" ? (
             <VolunteerTable rows={rows} expanded={expandedVolunteer} expenses={volunteerExpenses} onToggle={toggleVolunteerExpenses} onEdit={edit} onDelete={(row) => remove(rowId(row))} />
           ) : (
@@ -1141,7 +1148,7 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
           />
         </CardContent></Card>
       </div>
-      <div className="hidden xl:block" id="resource-form-desktop">
+      <div className="hidden min-w-0 xl:block" id="resource-form-desktop">
         <ResourceFormCard config={config} editingId={editingId} form={form} relationOptions={{ volunteerId: volunteers.map((volunteer) => ({ value: rowId(volunteer), label: volunteer.name || "", search: `${volunteer.phone || ""} ${volunteer.name || ""}` })) }} setForm={setForm} onSave={save} onClear={() => { setForm({}); setEditingId(null); }} />
       </div>
       {settlementExpense ? (
@@ -1183,9 +1190,9 @@ function ResourceFormCard({ config, editingId, form, relationOptions = {}, setFo
     <Card>
       <CardHeader><CardTitle>{editingId ? "Edit" : "Add"} {config.title}</CardTitle></CardHeader>
       <CardContent>
-        <form className="space-y-3" onSubmit={onSave}>
+        <form className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1" onSubmit={onSave}>
           {config.fields.map((field) => <FieldEditor key={field.key} field={field} options={relationOptions[field.key]} value={form[field.key]} onChange={(value) => setForm((current: AnyRow) => ({ ...current, [field.key]: value }))} />)}
-          <div className="grid gap-2 sm:flex"><Button className="w-full sm:w-auto" type="submit">{editingId ? "Update" : "Create"}</Button><Button className="w-full sm:w-auto" type="button" variant="outline" onClick={onClear}>Clear</Button></div>
+          <div className="grid gap-2 sm:col-span-2 sm:flex xl:col-span-1"><Button className="w-full sm:w-auto" type="submit">{editingId ? "Update" : "Create"}</Button><Button className="w-full sm:w-auto" type="button" variant="outline" onClick={onClear}>Clear</Button></div>
         </form>
       </CardContent>
     </Card>
@@ -1265,14 +1272,16 @@ function DataTable({ rows, columns, actions, renderCell, renderHeader, moneyColu
     return renderCell?.(row, column) ?? (moneyColumns.includes(column) ? money(row[column]) : displayCell(row, column));
   }
 
+  const pinActions = stickyActions ?? Boolean(actions);
+
   return (
-    <div className="overflow-x-auto">
+    <div className="max-w-full overflow-x-auto overscroll-x-contain">
       <Table>
         <TableHeader>
-          <TableRow>{columns.map((column) => <TableHead key={column} onClick={() => sortableColumns.includes(column) && onSort?.(column)} className={cn(sortableColumns.includes(column) && "cursor-pointer text-primary", columnClassName?.(column))}>{renderHeader?.(column) ?? label(column)}</TableHead>)}{actions ? <TableHead className={cn(stickyActions && "max-md:sticky max-md:right-0 max-md:z-30 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]")}>Action</TableHead> : null}</TableRow>
+          <TableRow>{columns.map((column) => <TableHead key={column} onClick={() => sortableColumns.includes(column) && onSort?.(column)} className={cn(sortableColumns.includes(column) && "cursor-pointer text-primary", columnClassName?.(column))}>{renderHeader?.(column) ?? label(column)}</TableHead>)}{actions ? <TableHead className={cn(pinActions && "max-md:sticky max-md:right-0 max-md:z-30 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]")}>Action</TableHead> : null}</TableRow>
         </TableHeader>
         <TableBody>
-          {rows.length ? rows.map((row) => <TableRow key={rowId(row)} className={rowClassName}>{columns.map((column) => <TableCell key={column} className={columnClassName?.(column)}>{cellValue(row, column)}</TableCell>)}{actions ? <TableCell className={cn(stickyActions && "max-md:sticky max-md:right-0 max-md:z-20 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]")}>{actions(row)}</TableCell> : null}</TableRow>) : <TableRow><TableCell colSpan={columns.length + (actions ? 1 : 0)} className="text-center text-muted-foreground">No records found</TableCell></TableRow>}
+          {rows.length ? rows.map((row) => <TableRow key={rowId(row)} className={rowClassName}>{columns.map((column) => <TableCell key={column} className={columnClassName?.(column)}>{cellValue(row, column)}</TableCell>)}{actions ? <TableCell className={cn(pinActions && "max-md:sticky max-md:right-0 max-md:z-20 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]")}>{actions(row)}</TableCell> : null}</TableRow>) : <TableRow><TableCell colSpan={columns.length + (actions ? 1 : 0)} className="text-center text-muted-foreground">No records found</TableCell></TableRow>}
         </TableBody>
       </Table>
     </div>
@@ -1289,7 +1298,7 @@ function PaginationControls({ pagination, pageSize, onPageChange, onPageSizeChan
     <div className="grid gap-3 border-t p-3 text-sm sm:flex sm:flex-wrap sm:items-center sm:justify-between">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground">Show</span>
-        <SelectBox value={String(pageSize)} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
+        <SelectBox className="w-20" value={String(pageSize)} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
           {[10, 25, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
         </SelectBox>
         <span className="text-muted-foreground">records per page</span>
@@ -1438,7 +1447,7 @@ function label(key: string) {
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(Boolean(localStorage.getItem("token")));
-  const [active, setActive] = useState<ResourceKey>("dashboard");
+  const [active, setActive] = useState<ResourceKey>(getInitialActivePage);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
@@ -1453,9 +1462,14 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
+    if (authenticated) localStorage.setItem(activePageStorageKey, active);
+  }, [active, authenticated]);
+
+  useEffect(() => {
     function handleAuthExpired() {
       setAuthenticated(false);
       setActive("dashboard");
+      localStorage.removeItem(activePageStorageKey);
       setMobileMenuOpen(false);
     }
 
@@ -1479,6 +1493,7 @@ export default function App() {
 
   function logout() {
     localStorage.clear();
+    localStorage.removeItem(activePageStorageKey);
     setAuthenticated(false);
   }
 
@@ -1488,19 +1503,26 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
       <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto bg-[#343a40] text-white lg:block">
         <div className="flex h-24 items-center justify-center border-b border-white/10 px-4"><img src={logoWhite} alt="Festival Expense Logo" className="max-h-20 object-contain" /></div>
         <nav className="p-2">{visibleMenu.map((item) => <NavButton key={item.key} icon={item.icon} active={active === item.key} onClick={() => navigate(item.key)} dark>{item.title}</NavButton>)}</nav>
       </aside>
-      <div className="lg:pl-64">
+      <div className="min-w-0 lg:pl-64">
         <header className="sticky top-0 z-10 border-b bg-background/95 px-3 backdrop-blur sm:px-4">
           <div className="flex min-h-16 items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <Button className="lg:hidden" variant="ghost" size="icon" onClick={() => setMobileMenuOpen((value) => !value)} title={mobileMenuOpen ? "Hide menu" : "Show menu"}>
                 <Menu className="h-5 w-5" />
               </Button>
-              <img src={currentLogo} alt="Festival Expense Logo" className="h-10 w-auto object-contain lg:hidden" />
+              <button
+                className="inline-flex h-11 items-center rounded-md px-1 hover:bg-muted lg:hidden"
+                onClick={() => navigate("dashboard")}
+                title="Dashboard"
+                type="button"
+              >
+                <img src={currentLogo} alt="Festival Expense Logo" className="h-10 w-auto object-contain" />
+              </button>
               <span className="hidden text-sm text-muted-foreground lg:inline">Festival Expense Tracker</span>
               <nav className="hidden items-center gap-5 text-lg text-muted-foreground md:flex lg:ml-4">
                 <button className={cn("hover:text-foreground", active === "dashboard" && "text-foreground")} onClick={() => navigate("dashboard")} type="button">Dashboard</button>
@@ -1529,17 +1551,17 @@ export default function App() {
             </nav>
           ) : null}
         </header>
-        <main className="p-3 pb-16 sm:p-4 md:pb-4">
+        <main className="min-w-0 p-3 pb-20 sm:p-4 sm:pb-20">
           {active === "dashboard" ? <Dashboard setActive={setActive} /> : active === "funds" ? <FundPage /> : active === "reports" ? <Reports /> : activeResource ? <ResourcePage config={activeResource} /> : null}
         </main>
-        <footer className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-3 py-2 text-center text-xs text-muted-foreground backdrop-blur sm:px-4 md:static md:py-3 md:text-sm">
+        <footer className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-3 py-2 text-center text-xs text-muted-foreground backdrop-blur sm:px-4 md:py-3 md:text-sm lg:left-64">
           Made with <span className="text-red-600">♥</span> in India &nbsp;|&nbsp;
           Powered by <a className="font-medium text-primary hover:underline" href="https://kplab.dev" target="_blank" rel="noreferrer">kplab.dev</a>
         </footer>
       </div>
       {showScrollTop ? (
         <Button
-          className="fixed bottom-4 right-4 z-40 rounded-full shadow-lg md:hidden"
+          className="fixed bottom-14 right-4 z-40 rounded-full shadow-lg md:hidden"
           size="icon"
           title="Go to top"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
