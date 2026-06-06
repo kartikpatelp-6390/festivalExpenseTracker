@@ -204,6 +204,38 @@ def generate_income_expense_report_pdf(year, report_data):
 
     table.setStyle(style)
     story.append(table)
+    thank_you = Table(
+        [["Thank you for your generous contribution and valuable support towards our festival"]],
+        colWidths=[usable_width],
+    )
+    thank_you.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, 0), "Helvetica-Oblique"),
+        ("FONTSIZE", (0, 0), (0, 0), 12),
+        ("TEXTCOLOR", (0, 0), (0, 0), colors.HexColor("#333333")),
+        ("ALIGN", (0, 0), (0, 0), "CENTER"),
+        ("TOPPADDING", (0, 0), (0, 0), 8),
+        ("BOTTOMPADDING", (0, 0), (0, 0), 2),
+    ]))
+    story.append(thank_you)
+
+    def draw_report_watermark(pdf_canvas, _doc):
+        if not report_logo.exists():
+            return
+        watermark_height = 110 * mm
+        watermark_width, watermark_height = _scaled_pdf_image(report_logo, watermark_height)
+        pdf_canvas.saveState()
+        pdf_canvas.setFillAlpha(0.07)
+        pdf_canvas.setStrokeAlpha(0.07)
+        pdf_canvas.drawImage(
+            str(report_logo),
+            (page_width - watermark_width) / 2,
+            (page_height - watermark_height) / 2 - 4 * mm,
+            width=watermark_width,
+            height=watermark_height,
+            preserveAspectRatio=True,
+            mask="auto",
+        )
+        pdf_canvas.restoreState()
 
     class ReportCanvas(canvas.Canvas):
         def __init__(self, *args, **kwargs):
@@ -251,18 +283,11 @@ def generate_income_expense_report_pdf(year, report_data):
             self.setFont("Helvetica-Bold", 14)
             self.drawCentredString(page_width / 2, page_height - 40 * mm, f"Festival Income & Expense Report - {year}")
 
-            self.setFillColor(colors.HexColor("#333333"))
-            self.setFont("Helvetica-Oblique", 12)
-            self.drawCentredString(
-                page_width / 2,
-                20 * mm,
-                "Thank you for your generous contribution and valuable support towards our festival",
-            )
             self.setFont("Helvetica-Oblique", 8)
             self.drawRightString(page_width - 12 * mm, 8 * mm, f"Page {self._pageNumber} of {page_count}")
             self.restoreState()
 
-    pdf.build(story, canvasmaker=ReportCanvas)
+    pdf.build(story, onFirstPage=draw_report_watermark, onLaterPages=draw_report_watermark, canvasmaker=ReportCanvas)
     buffer.seek(0)
     return buffer.getvalue()
 
