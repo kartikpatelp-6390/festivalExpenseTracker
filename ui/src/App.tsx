@@ -36,7 +36,7 @@ type ResourceKey = "dashboard" | "funds" | "reports" | "festivals" | "house" | "
 type AnyRow = Record<string, any>;
 type Pagination = { total: number; page: number; limit: number; totalPages: number };
 type FieldType = "text" | "number" | "date" | "password" | "checkbox" | "select";
-type Field = { key: string; label: string; type?: FieldType; options?: string[] };
+type Field = { key: string; label: string; type?: FieldType; options?: string[]; allowCustom?: boolean };
 type ResourceConfig = {
   key: ResourceKey;
   title: string;
@@ -112,8 +112,8 @@ const resources: ResourceConfig[] = [
     icon: Calculator,
     columns: ["festivalId", "category", "estimatedAmount", "description", "festivalYear"],
     fields: [
-      { key: "festivalId", label: "Festival ID", type: "number" },
-      { key: "category", label: "Category" },
+      { key: "festivalId", label: "Festival" },
+      { key: "category", label: "Category", allowCustom: true },
       { key: "estimatedAmount", label: "Estimated Amount", type: "number" },
       { key: "description", label: "Description" }
     ]
@@ -125,8 +125,8 @@ const resources: ResourceConfig[] = [
     icon: BarChart3,
     columns: ["festivalId", "category", "amount", "paymentMethod", "description", "volunteerId", "isSettled"],
     fields: [
-      { key: "festivalId", label: "Festival ID", type: "number" },
-      { key: "category", label: "Category" },
+      { key: "festivalId", label: "Festival" },
+      { key: "category", label: "Category", allowCustom: true },
       { key: "amount", label: "Amount", type: "number" },
       { key: "paymentMethod", label: "Payment Method", type: "select", options: ["Cash", "GPay"] },
       { key: "description", label: "Description" },
@@ -143,7 +143,7 @@ const resources: ResourceConfig[] = [
     columns: ["item", "category", "itemCount", "place", "note"],
     fields: [
       { key: "item", label: "Item" },
-      { key: "category", label: "Category" },
+      { key: "category", label: "Category", allowCustom: true },
       { key: "itemCount", label: "Count", type: "number" },
       { key: "place", label: "Place" },
       { key: "note", label: "Note" }
@@ -168,6 +168,12 @@ function money(value: unknown) {
 
 function rowId(row: AnyRow) {
   return String(row?._id || row?.mongo_id || row?.id || "");
+}
+
+function festivalLabel(festival: AnyRow) {
+  const name = festival?.name || "";
+  const year = festival?.year || festival?.festivalYear || "";
+  return year ? `${name} (${year})` : name;
 }
 
 function display(value: unknown) {
@@ -212,7 +218,7 @@ function displayCell(row: AnyRow, column: string) {
   }
   if (column === "festivalId") {
     const festival = value && typeof value === "object" ? value as AnyRow : row.festival;
-    return festival?.name || "";
+    return festival ? festivalLabel(festival) : "";
   }
   return display(value);
 }
@@ -275,14 +281,14 @@ function SelectBox(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 
 type SearchableOption = { value: string; label: string; search?: string };
 
-function SearchableSelect({ value, options, placeholder = "Search", disabled, onChange }: { value: string; options: SearchableOption[]; placeholder?: string; disabled?: boolean; onChange: (value: string) => void }) {
+function SearchableSelect({ value, options, placeholder = "Search", disabled, allowCustom, onChange }: { value: string; options: SearchableOption[]; placeholder?: string; disabled?: boolean; allowCustom?: boolean; onChange: (value: string) => void }) {
   const selected = options.find((option) => option.value === value);
-  const [query, setQuery] = useState(selected?.label || "");
+  const [query, setQuery] = useState(selected?.label || (allowCustom ? value : ""));
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    setQuery(selected?.label || "");
-  }, [selected?.label]);
+    setQuery(selected?.label || (allowCustom ? value : ""));
+  }, [allowCustom, selected?.label, value]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = normalizedQuery
@@ -299,7 +305,7 @@ function SearchableSelect({ value, options, placeholder = "Search", disabled, on
           const next = event.target.value;
           setQuery(next);
           setOpen(true);
-          if (!next) onChange("");
+          if (allowCustom || !next) onChange(next);
         }}
         onFocus={() => !disabled && setOpen(true)}
         placeholder={placeholder}
@@ -977,6 +983,7 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
   const [pagination, setPagination] = useState<Pagination>({ total: 0, page: 1, limit: 10, totalPages: 1 });
   const [festivals, setFestivals] = useState<AnyRow[]>([]);
   const [volunteers, setVolunteers] = useState<AnyRow[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [form, setForm] = useState<AnyRow>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -1028,11 +1035,27 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
     }
   }, [config.key]);
 
+  useEffect(() => {
+    const categoryEndpoints: Partial<Record<ResourceKey, string>> = {
+      estimates: "/estimates/categories",
+      expenses: "/expenses/categories",
+      inventory: "/inventory/category"
+    };
+    const endpoint = categoryEndpoints[config.key];
+    if (!endpoint) {
+      setCategories([]);
+      return;
+    }
+    api<{ data: string[] }>(endpoint)
+      .then((res) => setCategories((res.data || []).filter(Boolean)))
+      .catch(() => setCategories([]));
+  }, [config.key]);
+
   function edit(row: AnyRow) {
     const next: AnyRow = {};
     config.fields.forEach((field) => {
       const value = row[field.key];
-      if (field.key === "volunteerId") {
+      if (field.key === "festivalId" || field.key === "volunteerId") {
         next[field.key] = value && typeof value === "object" ? rowId(value) : value == null ? "" : String(value);
         return;
       }
@@ -1055,6 +1078,9 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
     event.preventDefault();
     const body = Object.fromEntries(Object.entries(form).map(([key, value]) => [key, value === "" ? null : value]));
     await api(editingId ? `${config.path}/${editingId}` : config.path, { method: editingId ? "PUT" : "POST", body: JSON.stringify(body) });
+    if (typeof body.category === "string" && body.category.trim()) {
+      setCategories((current) => current.includes(body.category as string) ? current : [...current, body.category as string]);
+    }
     setForm({});
     setEditingId(null);
     setShowForm(false);
@@ -1102,10 +1128,23 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
     }
   }
 
+  const festivalOptions = festivals.map((festival) => ({
+    value: rowId(festival),
+    label: festivalLabel(festival),
+    search: `${festival.name || ""} ${festival.year || ""}`
+  }));
+  const volunteerOptions = volunteers.map((volunteer) => ({
+    value: rowId(volunteer),
+    label: volunteer.name || "",
+    search: `${volunteer.phone || ""} ${volunteer.name || ""}`
+  }));
+  const categoryOptions = categories.map((category) => ({ value: category, label: category }));
+  const relationOptions = { festivalId: festivalOptions, volunteerId: volunteerOptions, category: categoryOptions };
+
   return (
     <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div id="resource-form" className={cn("min-w-0 xl:hidden", showForm ? "block" : "hidden")}>
-        <ResourceFormCard config={config} editingId={editingId} form={form} relationOptions={{ volunteerId: volunteers.map((volunteer) => ({ value: rowId(volunteer), label: volunteer.name || "", search: `${volunteer.phone || ""} ${volunteer.name || ""}` })) }} setForm={setForm} onSave={save} onClear={() => { setForm({}); setEditingId(null); setShowForm(false); }} />
+        <ResourceFormCard config={config} editingId={editingId} form={form} relationOptions={relationOptions} setForm={setForm} onSave={save} onClear={() => { setForm({}); setEditingId(null); setShowForm(false); }} />
       </div>
       <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1149,7 +1188,7 @@ function ResourcePage({ config }: { config: ResourceConfig }) {
         </CardContent></Card>
       </div>
       <div className="hidden min-w-0 xl:block" id="resource-form-desktop">
-        <ResourceFormCard config={config} editingId={editingId} form={form} relationOptions={{ volunteerId: volunteers.map((volunteer) => ({ value: rowId(volunteer), label: volunteer.name || "", search: `${volunteer.phone || ""} ${volunteer.name || ""}` })) }} setForm={setForm} onSave={save} onClear={() => { setForm({}); setEditingId(null); }} />
+        <ResourceFormCard config={config} editingId={editingId} form={form} relationOptions={relationOptions} setForm={setForm} onSave={save} onClear={() => { setForm({}); setEditingId(null); }} />
       </div>
       {settlementExpense ? (
         <SettlementConfirmModal
@@ -1247,7 +1286,7 @@ function FieldEditor({ field, value, options, onChange }: { field: Field; value:
   return (
     <label className="grid gap-1 text-sm">
       <span className="font-medium">{field.label}</span>
-      {options ? <SearchableSelect value={String(value ?? "")} onChange={onChange} options={options} placeholder={`Search ${field.label.toLowerCase()}`} /> :
+      {options ? <SearchableSelect value={String(value ?? "")} onChange={onChange} options={options} placeholder={`Search ${field.label.toLowerCase()}`} allowCustom={field.allowCustom} /> :
         field.type === "checkbox" ? <input className="h-5 w-5 accent-primary" type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} /> :
         field.type === "select" ? <SelectBox value={String(value ?? "")} onChange={(event) => onChange(event.target.value)}><option value="">Select</option>{(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}</SelectBox> :
           <Input type={field.type || "text"} value={String(value ?? "")} onChange={(event) => onChange(event.target.value)} />}
