@@ -981,7 +981,10 @@ function Reports({ publicMode = false }: { publicMode?: boolean }) {
           </Button>
         </CardContent>
       </Card>
-      <Card>
+      <div className="sm:hidden">
+        <MobileReportView reportData={reportData} incomeKeys={incomeKeys} festivalKeys={festivalKeys} />
+      </div>
+      <Card className="hidden sm:block">
         <CardContent className="overflow-x-auto p-2 sm:p-5">
           <Table className="min-w-[680px]">
             <TableHeader>
@@ -1048,6 +1051,81 @@ function Reports({ publicMode = false }: { publicMode?: boolean }) {
         </CardContent>
       </Card>
     </section>
+  );
+}
+
+function MobileReportView({ reportData, incomeKeys, festivalKeys }: { reportData: any; incomeKeys: string[]; festivalKeys: string[] }) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <ReportMetric label="Income" value={reportData.income} />
+        <ReportMetric label="Expense" value={reportData.totalExpense} />
+        <ReportMetric
+          className="col-span-2"
+          label="Balance"
+          value={reportData.balance}
+          valueClassName={Number(reportData.balance || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}
+        />
+      </div>
+
+      {incomeKeys.length ? (
+        <div className="rounded-md border bg-card">
+          <div className="border-b px-3 py-2 text-sm font-semibold">Income</div>
+          <div className="divide-y">
+            {incomeKeys.map((key) => (
+              <ReportAmountRow key={key} label={incomeLabel(key)} value={reportData.incomeGroup[key].total} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {festivalKeys.map((festival) => (
+        <div className="rounded-md border bg-card" key={festival}>
+          <div className="flex items-center justify-between gap-3 border-b bg-[#b8dcff] px-3 py-2 text-sm font-bold text-black">
+            <span className="min-w-0 break-words">{festival}</span>
+            <span className="shrink-0">{money(festivalTotal(reportData.expenses[festival]))}</span>
+          </div>
+          <div className="divide-y">
+            {Object.keys(reportData.expenses[festival] || {}).map((category) => (
+              <div className="space-y-2 px-3 py-2" key={`${festival}-${category}`}>
+                <div className="flex items-center justify-between gap-3 text-sm font-semibold">
+                  <span className="min-w-0 break-words italic">{category}</span>
+                  <span className="shrink-0">{money(reportData.expenses[festival][category].total)}</span>
+                </div>
+                <div className="space-y-1">
+                  {(reportData.expenses[festival][category].items || []).map((item: AnyRow, index: number) => (
+                    <ReportAmountRow
+                      compact
+                      key={`${festival}-${category}-${index}`}
+                      label={item.title || item.description || "-"}
+                      value={item.amount}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReportMetric({ label, value, className, valueClassName }: { label: string; value: unknown; className?: string; valueClassName?: string }) {
+  return (
+    <div className={cn("rounded-md border bg-card p-3", className)}>
+      <div className="text-xs font-medium uppercase text-muted-foreground">{label}</div>
+      <div className={cn("mt-1 break-words text-lg font-bold", valueClassName)}>{money(value)}</div>
+    </div>
+  );
+}
+
+function ReportAmountRow({ label, value, compact = false }: { label: string; value: unknown; compact?: boolean }) {
+  return (
+    <div className={cn("flex items-start justify-between gap-3 px-3 py-2 text-sm", compact && "px-0 py-0.5 text-xs text-muted-foreground")}>
+      <span className="min-w-0 break-words">{label}</span>
+      <span className="shrink-0 font-semibold text-foreground">{money(value)}</span>
+    </div>
   );
 }
 
@@ -1588,8 +1666,10 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (authenticated) localStorage.setItem(activePageStorageKey, active);
-  }, [active, authenticated]);
+    if (visibleKeys.includes(active)) {
+      localStorage.setItem(activePageStorageKey, active);
+    }
+  }, [active, visibleKeys.join("|")]);
 
   useEffect(() => {
     if (!visibleKeys.includes(active)) {
