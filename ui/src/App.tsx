@@ -60,9 +60,25 @@ const years = Array.from({ length: 14 }, (_, index) => 2024 + index);
 const currentYear = new Date().getFullYear();
 const logoBlank = "/assets/festival_logo_blank.png";
 const logoWhite = "/assets/festival_logo_white.png";
+const mandalLogo = "/assets/shivam-yuvak-mandal.png";
 const gpayQr = "/assets/GooglePay_QR.PNG";
 const kpLabsLogo = "/assets/kplabs.svg";
 const activePageStorageKey = "activePage";
+const mandalNameGujarati = "શિવમ્ યુવક મંડળ";
+
+function DashboardBrand() {
+  return (
+    <div className="flex justify-center">
+      <div className="inline-flex max-w-full flex-col items-center">
+        <div className="inline-flex max-w-full items-center justify-center gap-3 text-center sm:gap-4">
+          <img src={mandalLogo} alt="Shivam Yuvak Mandal logo" className="h-12 w-auto shrink-0 object-contain sm:h-16" />
+          <h1 className="mandal-glow break-words text-2xl font-semibold sm:text-3xl">{mandalNameGujarati}</h1>
+        </div>
+        <p className="text-sm font-medium text-muted-foreground sm:ml-20 sm:text-base">અણખોલ</p>
+      </div>
+    </div>
+  );
+}
 
 function getInitialTheme() {
   const savedTheme = localStorage.getItem("theme");
@@ -419,9 +435,9 @@ function PublicDashboard() {
 
   return (
     <section className="space-y-4">
+      <DashboardBrand />
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-          <h1 className="text-2xl font-semibold sm:text-3xl">Dashboard</h1>
           <strong className="text-lg sm:text-xl">{money(balance)}</strong>
           <AnimatedProgressMeter progress={progress} start={0} end={fundTotal} />
         </div>
@@ -496,9 +512,9 @@ function Dashboard({ setActive }: { setActive: (key: ResourceKey) => void }) {
 
   return (
     <section className="space-y-4">
+      <DashboardBrand />
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-          <h1 className="text-2xl font-semibold sm:text-3xl">Dashboard</h1>
           <strong className="text-lg sm:text-xl">{money(balance)}</strong>
           <AnimatedProgressMeter progress={progress} start={0} end={fundTotal} />
         </div>
