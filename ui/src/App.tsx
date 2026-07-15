@@ -8,6 +8,7 @@ import {
   Download,
   FileText,
   Home,
+  LogIn,
   LogOut,
   Pencil,
   Plus,
@@ -45,6 +46,14 @@ type ResourceConfig = {
   columns: string[];
   fields: Field[];
   searchFields?: string[];
+};
+type PublicSummary = {
+  totalFunds: number;
+  totalExpenses: number;
+  balance: number;
+  houseCount: number;
+  fundByPayment: Record<string, number>;
+  expenseByPayment: Record<string, number>;
 };
 
 const years = Array.from({ length: 14 }, (_, index) => 2024 + index);
@@ -334,7 +343,7 @@ function SearchableSelect({ value, options, placeholder = "Search", disabled, al
   );
 }
 
-function Login({ onLogin, logoSrc }: { onLogin: () => void; logoSrc: string }) {
+function Login({ onLogin, logoSrc, compact = false }: { onLogin: () => void; logoSrc: string; compact?: boolean }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -357,9 +366,8 @@ function Login({ onLogin, logoSrc }: { onLogin: () => void; logoSrc: string }) {
     }
   }
 
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-sm">
+  const content = (
+    <div className="w-full max-w-sm">
         <div className="mb-4 flex justify-center">
           <img src={logoSrc} alt="Festival Expense Logo" className="max-h-20 object-contain sm:max-h-24" />
         </div>
@@ -374,7 +382,79 @@ function Login({ onLogin, logoSrc }: { onLogin: () => void; logoSrc: string }) {
           </CardContent>
         </Card>
       </div>
+  );
+
+  if (compact) return content;
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+      {content}
     </main>
+  );
+}
+
+function PublicDashboard() {
+  const [year, setYear] = useState(String(currentYear));
+  const [summary, setSummary] = useState<PublicSummary>({
+    totalFunds: 0,
+    totalExpenses: 0,
+    balance: 0,
+    houseCount: 0,
+    fundByPayment: {},
+    expenseByPayment: {}
+  });
+
+  useEffect(() => {
+    api<PublicSummary>(`/public/dashboard-summary${toQuery({ festivalYear: year })}`, { auth: false })
+      .then(setSummary)
+      .catch(() => undefined);
+  }, [year]);
+
+  const fundTotal = Number(summary.totalFunds || 0);
+  const expenseTotal = Number(summary.totalExpenses || 0);
+  const balance = Number(summary.balance || 0);
+  const progress = fundTotal ? Math.max(0, Math.min(100, (balance / fundTotal) * 100)) : 0;
+  const cashBalance = Number(summary.fundByPayment?.Cash || 0) - Number(summary.expenseByPayment?.Cash || 0);
+  const gpayBalance = Number(summary.fundByPayment?.GPay || 0) - Number(summary.expenseByPayment?.GPay || 0);
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          <h1 className="text-2xl font-semibold sm:text-3xl">Dashboard</h1>
+          <strong className="text-lg sm:text-xl">{money(balance)}</strong>
+          <AnimatedProgressMeter progress={progress} start={0} end={fundTotal} />
+        </div>
+        <SelectBox className="sm:w-auto" value={year} onChange={(event) => setYear(event.target.value)}>
+          <option value="">All</option>
+          {years.map((item) => <option key={item} value={item}>{item}</option>)}
+        </SelectBox>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <DashboardBlock
+          className="bg-[#28a745]"
+          icon={BarChart3}
+          title="Balance"
+          value={balance}
+          lines={[`Cash: ${money(cashBalance)} | GPay: ${money(gpayBalance)}`]}
+        />
+        <DashboardBlock
+          className="bg-[#17a2b8]"
+          icon={WalletCards}
+          title="Total Fund"
+          value={fundTotal}
+          lines={[`Cash: ${money(summary.fundByPayment?.Cash || 0)} | GPay: ${money(summary.fundByPayment?.GPay || 0)}`]}
+        />
+        <DashboardBlock
+          className="bg-[#dc3545]"
+          icon={ReceiptText}
+          title="Total Expense"
+          value={expenseTotal}
+          lines={[`Cash: ${money(summary.expenseByPayment?.Cash || 0)} | GPay: ${money(summary.expenseByPayment?.GPay || 0)}`]}
+        />
+        <CountBlock animate className="bg-[#ffc107] text-[#1f2937]" icon={Home} title="Houses" value={Number(summary.houseCount || 0)} />
+      </div>
+    </section>
   );
 }
 
@@ -550,7 +630,7 @@ function DashboardBlock({ className, icon: Icon, title, value, lines, onMore }: 
   );
 }
 
-function CountBlock({ className, icon: Icon, title, value, format, animate, onMore }: { className: string; icon: typeof Home; title: string; value: number; format?: (value: number) => string; animate?: boolean; onMore: () => void }) {
+function CountBlock({ className, icon: Icon, title, value, format, animate, onMore }: { className: string; icon: typeof Home; title: string; value: number; format?: (value: number) => string; animate?: boolean; onMore?: () => void }) {
   return (
     <div className={cn("relative overflow-hidden rounded-md text-white shadow-sm", className)}>
       <Icon className="pointer-events-none absolute right-4 top-1/2 h-20 w-20 -translate-y-1/2 opacity-20 sm:h-24 sm:w-24" />
@@ -558,7 +638,7 @@ function CountBlock({ className, icon: Icon, title, value, format, animate, onMo
         <p className="break-words text-3xl font-semibold sm:text-5xl">{animate ? <CountUpText value={value} format={format} /> : format ? format(value) : value}</p>
         <p className="mt-4 text-lg sm:mt-5 sm:text-xl">{title}</p>
       </div>
-      <button className="w-full bg-black/10 px-3 py-2 text-lg font-semibold hover:bg-black/20" type="button" onClick={onMore}>More info</button>
+      {onMore ? <button className="w-full bg-black/10 px-3 py-2 text-lg font-semibold hover:bg-black/20" type="button" onClick={onMore}>More info</button> : <div className="h-11 bg-black/5" />}
     </div>
   );
 }
@@ -857,19 +937,21 @@ function FundForm({ fund, initialFund, volunteers, year, onClose, onSaved }: { f
   );
 }
 
-function Reports() {
+function Reports({ publicMode = false }: { publicMode?: boolean }) {
   const [year, setYear] = useState(String(currentYear));
   const [reportData, setReportData] = useState<any>({ income: 0, expenses: {}, totalExpense: 0, balance: 0 });
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    api<{ data: any }>(`/reports/yearly-report${toQuery({ year })}`).then((res) => setReportData(res.data || {})).catch(() => undefined);
-  }, [year]);
+    const prefix = publicMode ? "/public/reports" : "/reports";
+    api<{ data: any }>(`${prefix}/yearly-report${toQuery({ year })}`, { auth: !publicMode }).then((res) => setReportData(res.data || {})).catch(() => undefined);
+  }, [publicMode, year]);
 
   async function downloadReport() {
     setDownloading(true);
     try {
-      const blob = await apiBlob(`/reports/download-report${toQuery({ year })}`);
+      const prefix = publicMode ? "/public/reports" : "/reports";
+      const blob = await apiBlob(`${prefix}/download-report${toQuery({ year })}`, { auth: !publicMode });
       downloadBlob(blob, `festival_income_expense_report_${year}.pdf`);
     } finally {
       setDownloading(false);
@@ -1488,12 +1570,17 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(Boolean(localStorage.getItem("token")));
   const [active, setActive] = useState<ResourceKey>(getInitialActivePage);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
   const role = localStorage.getItem("role");
-  const activeResource = useMemo(() => resources.find((resource) => resource.key === active), [active]);
   const menu = [{ key: "dashboard" as ResourceKey, title: "Dashboard", icon: BarChart3 }, { key: "funds" as ResourceKey, title: "Funds", icon: WalletCards }, ...resources, { key: "reports" as ResourceKey, title: "Report", icon: FileText }];
-  const visibleMenu = role === "non-admin" ? menu.filter((item) => item.key === "dashboard") : menu;
+  const publicMenu = menu.filter((item) => item.key === "dashboard" || item.key === "reports");
+  const privateMenu = role === "non-admin" ? menu.filter((item) => item.key === "dashboard") : menu;
+  const visibleMenu = authenticated ? privateMenu : publicMenu;
+  const visibleKeys = visibleMenu.map((item) => item.key);
+  const safeActive = visibleKeys.includes(active) ? active : "dashboard";
+  const activeResource = useMemo(() => authenticated ? resources.find((resource) => resource.key === safeActive) : undefined, [authenticated, safeActive]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -1505,10 +1592,18 @@ export default function App() {
   }, [active, authenticated]);
 
   useEffect(() => {
+    if (!visibleKeys.includes(active)) {
+      setActive("dashboard");
+      setMobileMenuOpen(false);
+    }
+  }, [active, visibleKeys.join("|")]);
+
+  useEffect(() => {
     function handleAuthExpired() {
       setAuthenticated(false);
       setActive("dashboard");
       localStorage.removeItem(activePageStorageKey);
+      setLoginOpen(false);
       setMobileMenuOpen(false);
     }
 
@@ -1528,16 +1623,23 @@ export default function App() {
 
   const currentLogo = theme === "dark" ? logoWhite : logoBlank;
 
-  if (!authenticated) return <Login onLogin={() => setAuthenticated(true)} logoSrc={currentLogo} />;
-
   function logout() {
     localStorage.clear();
     localStorage.removeItem(activePageStorageKey);
     setAuthenticated(false);
+    setActive("dashboard");
+    setLoginOpen(false);
+    setMobileMenuOpen(false);
   }
 
   function navigate(key: ResourceKey) {
-    setActive(key);
+    setActive(visibleKeys.includes(key) ? key : "dashboard");
+    setMobileMenuOpen(false);
+  }
+
+  function handleLogin() {
+    setAuthenticated(true);
+    setLoginOpen(false);
     setMobileMenuOpen(false);
   }
 
@@ -1564,9 +1666,9 @@ export default function App() {
               </button>
               <span className="hidden text-sm text-muted-foreground lg:inline">Festival Expense Tracker</span>
               <nav className="hidden items-center gap-5 text-lg text-muted-foreground md:flex lg:ml-4">
-                <button className={cn("hover:text-foreground", active === "dashboard" && "text-foreground")} onClick={() => navigate("dashboard")} type="button">Dashboard</button>
-                <button className={cn("hover:text-foreground", active === "funds" && "text-foreground")} onClick={() => navigate("funds")} type="button">Fund</button>
-                <button className={cn("hover:text-foreground", active === "reports" && "text-foreground")} onClick={() => navigate("reports")} type="button">Report</button>
+                {visibleMenu.filter((item) => item.key === "dashboard" || item.key === "funds" || item.key === "reports").map((item) => (
+                  <button className={cn("hover:text-foreground", safeActive === item.key && "text-foreground")} key={item.key} onClick={() => navigate(item.key)} type="button">{item.title}</button>
+                ))}
               </nav>
             </div>
             <div className="flex shrink-0 items-center gap-1 sm:gap-3">
@@ -1581,7 +1683,11 @@ export default function App() {
               <a href="https://kplab.dev" target="_blank" rel="noreferrer" className="inline-flex items-center rounded-md px-1 py-1 hover:bg-muted sm:px-2" title="KP Labs">
                 <img src={kpLabsLogo} alt="KP Labs" className="h-8 w-auto object-contain dark:invert sm:h-9" />
               </a>
-              <Button variant="ghost" onClick={logout}><LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Logout</span></Button>
+              {authenticated ? (
+                <Button variant="ghost" onClick={logout}><LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Logout</span></Button>
+              ) : (
+                <Button variant="ghost" onClick={() => setLoginOpen(true)}><LogIn className="h-4 w-4" /> <span className="hidden sm:inline">Login</span></Button>
+              )}
             </div>
           </div>
           {mobileMenuOpen ? (
@@ -1591,7 +1697,12 @@ export default function App() {
           ) : null}
         </header>
         <main className="min-w-0 p-3 pb-20 sm:p-4 sm:pb-20">
-          {active === "dashboard" ? <Dashboard setActive={setActive} /> : active === "funds" ? <FundPage /> : active === "reports" ? <Reports /> : activeResource ? <ResourcePage config={activeResource} /> : null}
+          {!authenticated && safeActive === "dashboard" ? <PublicDashboard /> : null}
+          {!authenticated && safeActive === "reports" ? <Reports publicMode /> : null}
+          {authenticated && safeActive === "dashboard" ? <Dashboard setActive={setActive} /> : null}
+          {authenticated && safeActive === "funds" ? <FundPage /> : null}
+          {authenticated && safeActive === "reports" ? <Reports /> : null}
+          {authenticated && activeResource ? <ResourcePage config={activeResource} /> : null}
         </main>
         <footer className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-3 py-2 text-center text-xs text-muted-foreground backdrop-blur sm:px-4 md:py-3 md:text-sm lg:left-64">
           Made with <span className="text-red-600">♥</span> in India &nbsp;|&nbsp;
@@ -1607,6 +1718,13 @@ export default function App() {
         >
           <ArrowUp className="h-5 w-5" />
         </Button>
+      ) : null}
+      {loginOpen ? (
+        <Modal title="Login" onClose={() => setLoginOpen(false)}>
+          <div className="flex justify-center">
+            <Login compact onLogin={handleLogin} logoSrc={currentLogo} />
+          </div>
+        </Modal>
       ) : null}
     </div>
   );

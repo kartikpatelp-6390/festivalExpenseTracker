@@ -12,6 +12,7 @@ from .crud import (
 )
 from .reports import reports_bp
 from .shortlinks import shortlinks_bp
+from .public import public_bp
 
 
 def register_routes(app):
@@ -27,3 +28,4 @@ def register_routes(app):
     app.register_blueprint(todos_bp, url_prefix="/api/todos")
     app.register_blueprint(reports_bp, url_prefix="/api/reports")
     app.register_blueprint(shortlinks_bp, url_prefix="/api/short-links")
+    app.register_blueprint(public_bp, url_prefix="/api/public")
