@@ -13,12 +13,15 @@ import {
   Pencil,
   Plus,
   QrCode,
+  ReceiptIndianRupee,
   ReceiptText,
   RefreshCcw,
+  Scale,
   Search,
   Minus,
   Menu,
   Moon,
+  PiggyBank,
   Sun,
   Trash2,
   UsersRound,
@@ -55,6 +58,13 @@ type PublicSummary = {
   houseCount: number;
   fundByPayment: Record<string, number>;
   expenseByPayment: Record<string, number>;
+};
+type YearTotals = { fund: number; expense: number; balance: number };
+type YearComparison = {
+  currentYear: number;
+  previousYear: number;
+  current: YearTotals;
+  previous: YearTotals;
 };
 
 const years = Array.from({ length: 14 }, (_, index) => 2024 + index);
@@ -420,11 +430,22 @@ function PublicDashboard() {
     fundByPayment: {},
     expenseByPayment: {}
   });
+  const [yearComparison, setYearComparison] = useState<YearComparison | null>(null);
 
   useEffect(() => {
     api<PublicSummary>(`/public/dashboard-summary${toQuery({ festivalYear: year })}`, { auth: false })
       .then(setSummary)
       .catch(() => undefined);
+  }, [year]);
+
+  useEffect(() => {
+    if (!year) {
+      setYearComparison(null);
+      return;
+    }
+    api<YearComparison>(`/public/dashboard-year-comparison${toQuery({ festivalYear: year })}`, { auth: false })
+      .then(setYearComparison)
+      .catch(() => setYearComparison(null));
   }, [year]);
 
   const fundTotal = Number(summary.totalFunds || 0);
@@ -447,24 +468,25 @@ function PublicDashboard() {
           {years.map((item) => <option key={item} value={item}>{item}</option>)}
         </SelectBox>
       </div>
+      <YearComparisonChart data={yearComparison} selectedYear={year} />
       <div className="grid gap-4 xl:grid-cols-2">
         <DashboardBlock
           className="bg-[#28a745]"
-          icon={BarChart3}
+          icon={Scale}
           title="Balance"
           value={balance}
           lines={[`Cash: ${money(cashBalance)} | GPay: ${money(gpayBalance)}`]}
         />
         <DashboardBlock
           className="bg-[#17a2b8]"
-          icon={WalletCards}
+          icon={PiggyBank}
           title="Total Fund"
           value={fundTotal}
           lines={[`Cash: ${money(summary.fundByPayment?.Cash || 0)} | GPay: ${money(summary.fundByPayment?.GPay || 0)}`]}
         />
         <DashboardBlock
           className="bg-[#dc3545]"
-          icon={ReceiptText}
+          icon={ReceiptIndianRupee}
           title="Total Expense"
           value={expenseTotal}
           lines={[`Cash: ${money(summary.expenseByPayment?.Cash || 0)} | GPay: ${money(summary.expenseByPayment?.GPay || 0)}`]}
@@ -483,24 +505,39 @@ function Dashboard({ setActive }: { setActive: (key: ResourceKey) => void }) {
   const [houses, setHouses] = useState<AnyRow[]>([]);
   const [volunteers, setVolunteers] = useState<AnyRow[]>([]);
   const [todos, setTodos] = useState<AnyRow[]>([]);
+  const [yearComparison, setYearComparison] = useState<YearComparison | null>(null);
+  const [editingExpense, setEditingExpense] = useState<AnyRow | null>(null);
 
-  useEffect(() => {
+  async function loadDashboard() {
     const params = toQuery({ festivalYear: year, page: 1, limit: 250 });
-    Promise.all([
+    const [fundRes, expenseRes, estimateRes, houseRes, volunteerRes, todoRes] = await Promise.all([
       api<{ data: AnyRow[] }>(`/funds${params}`),
       api<{ data: AnyRow[] }>(`/expenses${params}`),
       api<{ data: AnyRow[] }>(`/estimates${params}`),
       api<{ data: AnyRow[] }>("/house?page=1&limit=500"),
       api<{ data: AnyRow[] }>("/volunteers?page=1&limit=250"),
       api<{ data: AnyRow[] }>("/todos?page=1&limit=5&sort=-createdAt")
-    ]).then(([fundRes, expenseRes, estimateRes, houseRes, volunteerRes, todoRes]) => {
-      setFunds(fundRes.data || []);
-      setExpenses(expenseRes.data || []);
-      setEstimates(estimateRes.data || []);
-      setHouses(houseRes.data || []);
-      setVolunteers(volunteerRes.data || []);
-      setTodos(todoRes.data || []);
-    }).catch(() => undefined);
+    ]);
+    setFunds(fundRes.data || []);
+    setExpenses(expenseRes.data || []);
+    setEstimates(estimateRes.data || []);
+    setHouses(houseRes.data || []);
+    setVolunteers(volunteerRes.data || []);
+    setTodos(todoRes.data || []);
+  }
+
+  useEffect(() => {
+    loadDashboard().catch(() => undefined);
+  }, [year]);
+
+  useEffect(() => {
+    if (!year) {
+      setYearComparison(null);
+      return;
+    }
+    api<YearComparison>(`/dashboard/year-comparison${toQuery({ festivalYear: year })}`)
+      .then(setYearComparison)
+      .catch(() => setYearComparison(null));
   }, [year]);
 
   const fundTotal = sumRows(funds);
@@ -524,17 +561,18 @@ function Dashboard({ setActive }: { setActive: (key: ResourceKey) => void }) {
           {years.map((item) => <option key={item} value={item}>{item}</option>)}
         </SelectBox>
       </div>
+      <YearComparisonChart data={yearComparison} selectedYear={year} />
       <div className="grid gap-4 xl:grid-cols-2">
         <DashboardBlock
           className="bg-[#28a745]"
-          icon={BarChart3}
+          icon={Scale}
           title="Balance"
           value={balance}
           lines={[`Cash: ${money(paymentTotal(funds, "Cash") - paymentTotal(expenses, "Cash"))} | GPay: ${money(paymentTotal(funds, "GPay") - paymentTotal(expenses, "GPay"))}`]}
         />
         <DashboardBlock
           className="bg-[#17a2b8]"
-          icon={WalletCards}
+          icon={PiggyBank}
           title="Total Fund"
           value={fundTotal}
           lines={[`Cash: ${money(paymentTotal(funds, "Cash"))} | GPay: ${money(paymentTotal(funds, "GPay"))}`]}
@@ -542,7 +580,7 @@ function Dashboard({ setActive }: { setActive: (key: ResourceKey) => void }) {
         />
         <DashboardBlock
           className="bg-[#dc3545]"
-          icon={ReceiptText}
+          icon={ReceiptIndianRupee}
           title="Total Expense"
           value={expenseTotal}
           lines={[`Cash: ${money(paymentTotal(expenses, "Cash"))} | GPay: ${money(paymentTotal(expenses, "GPay"))}`, `Settled: ${money(settledTotal)} | Unsettled: ${money(unsettledTotal)}`]}
@@ -555,9 +593,20 @@ function Dashboard({ setActive }: { setActive: (key: ResourceKey) => void }) {
           <CountBlock animate className="bg-[#6c757d]" icon={ClipboardList} title="Todos" value={todos.length} onMore={() => setActive("todos")} />
         </div>
       </div>
-      <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <RecentPanel title="Recent Funds" rows={funds.slice(0, 5)} columns={["type", "name", "amount", "paymentMethod"]} moneyColumns={["amount"]} addLabel="Add New Fund" viewLabel="View All Funds" onAdd={() => setActive("funds")} onView={() => setActive("funds")} />
-        <RecentPanel title="Recent Expenses" rows={expenses.slice(0, 5)} columns={["category", "amount", "volunteerId"]} moneyColumns={["amount"]} addLabel="Add New Expense" viewLabel="View All Expense" onAdd={() => setActive("expenses")} onView={() => setActive("expenses")} highlight />
+        <RecentPanel
+          title="Recent Expenses"
+          rows={expenses.slice(0, 5)}
+          columns={["category", "amount", "volunteerId"]}
+          moneyColumns={["amount"]}
+          addLabel="Add New Expense"
+          viewLabel="View All Expense"
+          onAdd={() => setActive("expenses")}
+          onView={() => setActive("expenses")}
+          onRowClick={setEditingExpense}
+          rowClassName={(row) => !row.isSettled ? "bg-red-100 text-red-950 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-100 dark:hover:bg-red-950/40" : ""}
+        />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
@@ -568,7 +617,244 @@ function Dashboard({ setActive }: { setActive: (key: ResourceKey) => void }) {
           </CardContent>
         </Card>
       </div>
+      {editingExpense ? (
+        <ExpenseEditModal
+          expense={editingExpense}
+          volunteers={volunteers}
+          onClose={() => setEditingExpense(null)}
+          onSaved={loadDashboard}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function YearComparisonChart({ data, selectedYear }: { data: YearComparison | null; selectedYear: string }) {
+  const chartHeight = 190;
+  const rows = data ? [
+    { label: "Fund", previous: data.previous.fund, current: data.current.fund },
+    { label: "Expense", previous: data.previous.expense, current: data.current.expense },
+    { label: "Balance", previous: data.previous.balance, current: data.current.balance }
+  ] : [];
+  const maxValue = Math.max(1, ...rows.flatMap((row) => [Math.abs(row.current), Math.abs(row.previous)]));
+  const axisStep = niceAxisStep(maxValue);
+  const axisMax = axisStep * 4;
+  const yTicks = [axisMax, axisMax * 0.75, axisMax * 0.5, axisMax * 0.25, 0];
+  const currentLabel = data ? `Current Year (${data.currentYear})` : "Current Year";
+  const previousLabel = data ? `Previous Year (${data.previousYear})` : "Previous Year";
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between border-b">
+        <CardTitle>Year Comparison</CardTitle>
+        <div className="rounded-md border bg-muted/40 px-3 py-1 text-sm font-semibold text-muted-foreground">
+          {data ? `${data.currentYear} vs ${data.previousYear}` : selectedYear ? "Loading..." : "Select year"}
+        </div>
+      </CardHeader>
+      <CardContent className="p-3 sm:p-4">
+        {data ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-muted-foreground sm:text-sm">
+              <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-[#f59e0b]" />{previousLabel}</span>
+              <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-[#19a7b8]" />{currentLabel}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="grid min-w-[440px] grid-cols-[50px_minmax(0,1fr)] grid-rows-[230px_auto_auto] sm:min-w-[680px] sm:grid-cols-[72px_minmax(0,1fr)] sm:grid-rows-[240px_auto_auto]">
+                <div className="relative row-start-1 border-r border-border pr-3">
+                  <span className="absolute -left-5 top-1/2 -translate-y-1/2 -rotate-90 text-[10px] font-semibold text-muted-foreground sm:-left-3 sm:text-xs">Amount</span>
+                  {yTicks.map((tick) => (
+                    <span
+                      key={tick}
+                      className="absolute right-2 translate-y-1/2 text-right text-[10px] font-medium text-muted-foreground sm:right-3 sm:text-xs"
+                      style={{ bottom: `${(tick / axisMax) * 100}%` }}
+                    >
+                      {compactIndianAmount(tick)}
+                    </span>
+                  ))}
+                </div>
+                <div className="relative row-start-1 border-b border-border">
+                  {yTicks.slice(0, -1).map((tick) => (
+                    <div
+                      key={tick}
+                      className="absolute left-0 right-0 border-t border-dashed border-border/70"
+                      style={{ bottom: `${(tick / axisMax) * 100}%` }}
+                    />
+                  ))}
+                  <div className="relative z-10 flex h-full items-end gap-3 px-2 sm:gap-6 sm:px-4">
+                    {rows.map((row) => (
+                      <div key={row.label} className="flex h-full flex-1 items-end justify-center gap-1.5 sm:gap-3">
+                        <YearBar value={row.previous} maxValue={axisMax} chartHeight={chartHeight} colorClassName="bg-[#f59e0b]" />
+                        <YearBar value={row.current} maxValue={axisMax} chartHeight={chartHeight} colorClassName="bg-[#19a7b8]" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="col-start-2 row-start-2 flex gap-3 px-2 pt-2 sm:gap-6 sm:px-4">
+                  {rows.map((row) => <p key={row.label} className="flex-1 text-center text-xs font-semibold sm:text-sm">{row.label}</p>)}
+                </div>
+                <div className="col-start-2 row-start-3 pt-3 text-center text-xs font-semibold text-muted-foreground">Record Type</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+            Select a festival year to compare it with the previous year.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function niceAxisStep(maxValue: number) {
+  if (maxValue <= 0) return 1000;
+  const roughStep = maxValue / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const normalized = roughStep / magnitude;
+  const niceMultiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return niceMultiplier * magnitude;
+}
+
+function compactIndianAmount(value: number) {
+  const amount = Math.round(value);
+  if (amount === 0) return "0";
+  if (Math.abs(amount) >= 10000000) return `${formatCompactNumber(amount / 10000000)}Cr`;
+  if (Math.abs(amount) >= 100000) return `${formatCompactNumber(amount / 100000)}L`;
+  if (Math.abs(amount) >= 1000) return `${formatCompactNumber(amount / 1000)}K`;
+  return String(amount);
+}
+
+function formatCompactNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
+}
+
+function YearBar({ value, maxValue, chartHeight, colorClassName }: { value: number; maxValue: number; chartHeight: number; colorClassName: string }) {
+  const displayValue = useCountUpFromZero(value);
+  const height = Math.max(displayValue ? 8 : 0, (Math.abs(displayValue) / maxValue) * chartHeight);
+
+  return (
+    <div className="relative h-full w-12 sm:w-24">
+      <span
+        className="absolute left-1/2 max-w-16 -translate-x-1/2 text-center text-[10px] font-semibold leading-tight sm:max-w-none sm:text-sm"
+        style={{ bottom: height + 8 }}
+      >
+        {money(displayValue)}
+      </span>
+      <div
+        className={cn("absolute bottom-0 left-0 w-full rounded-t-md shadow-sm", colorClassName, value < 0 && "opacity-70")}
+        style={{ height }}
+        title={money(value)}
+      />
+    </div>
+  );
+}
+
+function useCountUpFromZero(value: number, duration = 1100) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setDisplayValue(value);
+      return;
+    }
+
+    setDisplayValue(0);
+    const startTime = performance.now();
+    let frame = 0;
+
+    function tick(now: number) {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(value * eased);
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    }
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [duration, value]);
+
+  return displayValue;
+}
+
+function ExpenseEditModal({ expense, volunteers, onClose, onSaved }: { expense: AnyRow; volunteers: AnyRow[]; onClose: () => void; onSaved: () => void | Promise<void> }) {
+  const [festivals, setFestivals] = useState<AnyRow[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState<AnyRow>({
+    festivalId: rowId(expense.festivalId || expense.festival || {}),
+    category: expense.category || "",
+    amount: expense.amount || "",
+    paymentMethod: expense.paymentMethod || "",
+    description: expense.description || "",
+    note: expense.note || "",
+    volunteerId: rowId(expense.volunteerId || expense.volunteer || {}),
+    isSettled: Boolean(expense.isSettled)
+  });
+
+  useEffect(() => {
+    Promise.all([
+      api<{ data: AnyRow[] }>("/festivals?page=1&limit=300"),
+      api<{ data: string[] }>("/expenses/categories")
+    ]).then(([festivalRes, categoryRes]) => {
+      setFestivals(festivalRes.data || []);
+      setCategories((categoryRes.data || []).filter(Boolean));
+    }).catch(() => undefined);
+  }, []);
+
+  const festivalOptions = festivals.map((festival) => ({
+    value: rowId(festival),
+    label: festivalLabel(festival),
+    search: `${festival.name || ""} ${festival.year || ""}`
+  }));
+  const volunteerOptions = volunteers.map((volunteer) => ({
+    value: rowId(volunteer),
+    label: volunteer.name || "",
+    search: `${volunteer.phone || ""} ${volunteer.name || ""}`
+  }));
+  const categoryOptions = categories.map((category) => ({ value: category, label: category }));
+
+  function setValue(key: string, value: string | boolean) {
+    setForm((current: AnyRow) => ({ ...current, [key]: value }));
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const payload = Object.fromEntries(Object.entries(form).map(([key, value]) => [key, value === "" ? null : value]));
+      await api(`/expenses/${rowId(expense)}`, {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      });
+      await onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update expense");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Edit Expense" onClose={onClose} wide>
+      <form className="grid gap-3 md:grid-cols-2" onSubmit={submit}>
+        <Field label="Festival"><SearchableSelect value={String(form.festivalId || "")} onChange={(value) => setValue("festivalId", value)} options={festivalOptions} placeholder="Search festival" /></Field>
+        <Field label="Category"><SearchableSelect value={String(form.category || "")} onChange={(value) => setValue("category", value)} options={categoryOptions} placeholder="Search category" allowCustom /></Field>
+        <Field label="Amount"><Input type="number" value={String(form.amount ?? "")} onChange={(event) => setValue("amount", event.target.value)} required /></Field>
+        <Field label="Payment Method"><SelectBox value={String(form.paymentMethod || "")} onChange={(event) => setValue("paymentMethod", event.target.value)}><option value="">Select</option><option value="Cash">Cash</option><option value="GPay">GPay</option></SelectBox></Field>
+        <Field label="Description"><Input value={String(form.description || "")} onChange={(event) => setValue("description", event.target.value)} /></Field>
+        <Field label="Note"><Input value={String(form.note || "")} onChange={(event) => setValue("note", event.target.value)} /></Field>
+        <Field label="Volunteer"><SearchableSelect value={String(form.volunteerId || "")} onChange={(value) => setValue("volunteerId", value)} options={volunteerOptions} placeholder="Search volunteer" /></Field>
+        <Field label="Settled"><input className="h-5 w-5 accent-primary" type="checkbox" checked={Boolean(form.isSettled)} onChange={(event) => setValue("isSettled", event.target.checked)} /></Field>
+        {error ? <p className="text-sm text-destructive md:col-span-2">{error}</p> : null}
+        <div className="grid gap-2 md:col-span-2 sm:flex sm:flex-wrap">
+          <Button className="w-full sm:w-auto" type="submit" disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
+          <Button className="w-full sm:w-auto" type="button" variant="ghost" disabled={saving} onClick={onClose}>Cancel</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -660,15 +946,17 @@ function CountBlock({ className, icon: Icon, title, value, format, animate, onMo
   );
 }
 
-function RecentPanel({ title, rows, columns, moneyColumns, addLabel, viewLabel, onAdd, onView, renderCell, highlight }: { title: string; rows: AnyRow[]; columns: string[]; moneyColumns: string[]; addLabel: string; viewLabel: string; onAdd: () => void; onView: () => void; renderCell?: (row: AnyRow, column: string) => React.ReactNode | undefined; highlight?: boolean }) {
+function RecentPanel({ title, rows, columns, moneyColumns, addLabel, viewLabel, onAdd, onView, renderCell, rowClassName, onRowClick }: { title: string; rows: AnyRow[]; columns: string[]; moneyColumns: string[]; addLabel: string; viewLabel: string; onAdd: () => void; onView: () => void; renderCell?: (row: AnyRow, column: string) => React.ReactNode | undefined; rowClassName?: (row: AnyRow) => string; onRowClick?: (row: AnyRow) => void }) {
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between border-b">
+    <Card className="min-w-0 overflow-hidden">
+      <CardHeader className="flex-row items-center justify-between gap-3 border-b">
         <CardTitle>{title}</CardTitle>
         <div className="flex gap-4 text-xl text-muted-foreground"><span>-</span><span>x</span></div>
       </CardHeader>
       <CardContent className="p-0">
-        <DataTable rows={rows} columns={columns} moneyColumns={moneyColumns} renderCell={renderCell} rowClassName={highlight ? "bg-emerald-100 text-emerald-950 hover:bg-emerald-100 dark:bg-emerald-100 dark:text-emerald-950 dark:hover:bg-emerald-100" : undefined} />
+        <div className="min-w-0">
+          <DataTable rows={rows} columns={columns} moneyColumns={moneyColumns} renderCell={renderCell} rowClassName={rowClassName} onRowClick={onRowClick} />
+        </div>
         <div className="grid gap-2 border-t p-3 sm:flex sm:justify-between sm:p-4">
           <Button className="w-full sm:w-auto" onClick={onAdd}><Plus className="h-4 w-4" /> {addLabel}</Button>
           <Button className="w-full sm:w-auto" variant="outline" onClick={onView}>{viewLabel}</Button>
@@ -1483,7 +1771,7 @@ function fundColumnClassName(column: string) {
   return classes[column] || "";
 }
 
-function DataTable({ rows, columns, actions, renderCell, renderHeader, moneyColumns = [], sortableColumns = [], onSort, rowClassName, stickyActions, columnClassName }: { rows: AnyRow[]; columns: string[]; actions?: (row: AnyRow) => React.ReactNode; renderCell?: (row: AnyRow, column: string) => React.ReactNode | undefined; renderHeader?: (column: string) => React.ReactNode | undefined; moneyColumns?: string[]; sortableColumns?: string[]; onSort?: (column: string) => void; rowClassName?: string; stickyActions?: boolean; columnClassName?: (column: string) => string }) {
+function DataTable({ rows, columns, actions, renderCell, renderHeader, moneyColumns = [], sortableColumns = [], onSort, rowClassName, onRowClick, stickyActions, columnClassName }: { rows: AnyRow[]; columns: string[]; actions?: (row: AnyRow) => React.ReactNode; renderCell?: (row: AnyRow, column: string) => React.ReactNode | undefined; renderHeader?: (column: string) => React.ReactNode | undefined; moneyColumns?: string[]; sortableColumns?: string[]; onSort?: (column: string) => void; rowClassName?: string | ((row: AnyRow) => string); onRowClick?: (row: AnyRow) => void; stickyActions?: boolean; columnClassName?: (column: string) => string }) {
   function cellValue(row: AnyRow, column: string) {
     return renderCell?.(row, column) ?? (moneyColumns.includes(column) ? money(row[column]) : displayCell(row, column));
   }
@@ -1497,7 +1785,7 @@ function DataTable({ rows, columns, actions, renderCell, renderHeader, moneyColu
           <TableRow>{columns.map((column) => <TableHead key={column} onClick={() => sortableColumns.includes(column) && onSort?.(column)} className={cn(sortableColumns.includes(column) && "cursor-pointer text-primary", columnClassName?.(column))}>{renderHeader?.(column) ?? label(column)}</TableHead>)}{actions ? <TableHead className={cn(pinActions && "max-md:sticky max-md:right-0 max-md:z-30 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]")}>Action</TableHead> : null}</TableRow>
         </TableHeader>
         <TableBody>
-          {rows.length ? rows.map((row) => <TableRow key={rowId(row)} className={rowClassName}>{columns.map((column) => <TableCell key={column} className={columnClassName?.(column)}>{cellValue(row, column)}</TableCell>)}{actions ? <TableCell className={cn(pinActions && "max-md:sticky max-md:right-0 max-md:z-20 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]")}>{actions(row)}</TableCell> : null}</TableRow>) : <TableRow><TableCell colSpan={columns.length + (actions ? 1 : 0)} className="text-center text-muted-foreground">No records found</TableCell></TableRow>}
+          {rows.length ? rows.map((row) => <TableRow key={rowId(row)} className={cn(typeof rowClassName === "function" ? rowClassName(row) : rowClassName, onRowClick && "cursor-pointer")} onClick={() => onRowClick?.(row)}>{columns.map((column) => <TableCell key={column} className={columnClassName?.(column)}>{cellValue(row, column)}</TableCell>)}{actions ? <TableCell className={cn(pinActions && "max-md:sticky max-md:right-0 max-md:z-20 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]")}>{actions(row)}</TableCell> : null}</TableRow>) : <TableRow><TableCell colSpan={columns.length + (actions ? 1 : 0)} className="text-center text-muted-foreground">No records found</TableCell></TableRow>}
         </TableBody>
       </Table>
     </div>

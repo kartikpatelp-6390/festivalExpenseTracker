@@ -23,5 +23,5 @@ export function TableHead({ className, ...props }: React.ThHTMLAttributes<HTMLTa
 }
 
 export function TableCell({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("max-w-56 whitespace-nowrap px-2 py-2 align-middle sm:max-w-72 sm:px-3", className)} {...props} />;
+  return <td className={cn("max-w-44 whitespace-normal break-words px-2 py-2 align-middle sm:max-w-72 sm:whitespace-nowrap sm:px-3", className)} {...props} />;
 }
