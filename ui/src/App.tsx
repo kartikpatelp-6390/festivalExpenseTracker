@@ -12,6 +12,7 @@ import {
   LogOut,
   Pencil,
   Plus,
+  QrCode,
   ReceiptText,
   RefreshCcw,
   Search,
@@ -61,7 +62,7 @@ const currentYear = new Date().getFullYear();
 const logoBlank = "/assets/festival_logo_blank.png";
 const logoWhite = "/assets/festival_logo_white.png";
 const mandalLogo = "/assets/shivam-yuvak-mandal.png";
-const gpayQr = "/assets/GooglePay_QR.PNG";
+const gpayQr = "/assets/gpay-qr-code.jpeg";
 const kpLabsLogo = "/assets/kplabs.svg";
 const activePageStorageKey = "activePage";
 const mandalNameGujarati = "શિવમ્ યુવક મંડળ";
@@ -925,6 +926,16 @@ function FundForm({ fund, initialFund, volunteers, year, onClose, onSaved }: { f
         <Field label="Festival Year"><SelectBox value={form.festivalYear} onChange={(event) => setValue("festivalYear", event.target.value)}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</SelectBox></Field>
         <Field label="Alternative Phone"><Input value={form.alternativePhone} onChange={(event) => setValue("alternativePhone", event.target.value)} /></Field>
         <Field label="Volunteer"><SearchableSelect value={form.volunteerId} onChange={(value) => setValue("volunteerId", value)} options={volunteerOptions} placeholder="Search volunteer" /></Field>
+        <div className="md:col-span-2">
+          <button
+            type="button"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md border bg-card px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted sm:w-auto"
+            onClick={() => setQrOpen(true)}
+          >
+            <QrCode className="h-4 w-4 shrink-0" />
+            Open QR Code
+          </button>
+        </div>
         <div className="grid gap-2 md:col-span-2 sm:flex sm:flex-wrap">
           <Button className="w-full sm:w-auto" type="submit">Save</Button>
           <Button className="w-full sm:w-auto" type="button" variant="secondary" onClick={(event) => submit(event as unknown as FormEvent, "download")}><Download className="h-4 w-4" /> Save & Download</Button>
@@ -932,16 +943,6 @@ function FundForm({ fund, initialFund, volunteers, year, onClose, onSaved }: { f
           <Button className="w-full sm:w-auto" type="button" variant="ghost" onClick={onClose}>Cancel</Button>
         </div>
       </form>
-      {form.paymentMethod === "GPay" ? (
-        <button
-          type="button"
-          className="mt-4 inline-flex w-full items-center gap-3 rounded-md border bg-card p-2 text-left shadow-sm hover:bg-muted sm:w-auto"
-          onClick={() => setQrOpen(true)}
-        >
-          <img src={gpayQr} alt="Google Pay QR" className="h-20 w-20 rounded border bg-white object-contain p-1" />
-          <span className="text-sm font-medium">Open QR</span>
-        </button>
-      ) : null}
       {qrOpen ? (
         <Modal title="Google Pay QR" onClose={() => setQrOpen(false)}>
           <div className="flex justify-center">
