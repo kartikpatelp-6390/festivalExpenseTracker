@@ -655,7 +655,7 @@ function YearComparisonChart({ data, selectedYear }: { data: YearComparison | nu
         {data ? (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-muted-foreground sm:text-sm">
-              <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-[#f59e0b]" />{previousLabel}</span>
+              <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-[#19a7b8]/35" />{previousLabel}</span>
               <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-[#19a7b8]" />{currentLabel}</span>
             </div>
             <div className="overflow-x-auto">
@@ -683,7 +683,7 @@ function YearComparisonChart({ data, selectedYear }: { data: YearComparison | nu
                   <div className="relative z-10 flex h-full items-end gap-3 px-2 sm:gap-6 sm:px-4">
                     {rows.map((row) => (
                       <div key={row.label} className="flex h-full flex-1 items-end justify-center gap-1.5 sm:gap-3">
-                        <YearBar value={row.previous} maxValue={axisMax} chartHeight={chartHeight} colorClassName="bg-[#f59e0b]" />
+                        <YearBar value={row.previous} maxValue={axisMax} chartHeight={chartHeight} colorClassName="bg-[#19a7b8]/35" />
                         <YearBar value={row.current} maxValue={axisMax} chartHeight={chartHeight} colorClassName="bg-[#19a7b8]" />
                       </div>
                     ))}
