@@ -1,15 +1,21 @@
 import {
   ArrowUp,
   BarChart3,
+  Baby,
   Boxes,
   Calculator,
   CalendarDays,
+  Clock3,
   ClipboardList,
+  CheckCircle2,
+  Copy,
   Download,
   FileText,
   Home,
+  Info,
   LogIn,
   LogOut,
+  MapPin,
   Pencil,
   Plus,
   QrCode,
@@ -17,18 +23,23 @@ import {
   ReceiptText,
   RefreshCcw,
   Scale,
+  ScanLine,
   Search,
+  Send,
   Minus,
   Menu,
   Moon,
   PiggyBank,
   Sun,
   Trash2,
+  Utensils,
   UsersRound,
   WalletCards
 } from "lucide-react";
 import type React from "react";
 import { FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
+import html2canvas from "html2canvas";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +48,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { api, apiBlob, toQuery } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-type ResourceKey = "dashboard" | "funds" | "reports" | "festivals" | "house" | "volunteers" | "estimates" | "expenses" | "inventory" | "todos";
+type ResourceKey = "dashboard" | "funds" | "dinner" | "reports" | "festivals" | "house" | "volunteers" | "estimates" | "expenses" | "inventory" | "todos";
 type AnyRow = Record<string, any>;
 type Pagination = { total: number; page: number; limit: number; totalPages: number };
 type FieldType = "text" | "number" | "date" | "password" | "checkbox" | "select";
@@ -99,7 +110,7 @@ function getInitialTheme() {
 
 function getInitialActivePage(): ResourceKey {
   const savedPage = localStorage.getItem(activePageStorageKey) as ResourceKey | null;
-  const validPages: ResourceKey[] = ["dashboard", "funds", "reports", ...resources.map((resource) => resource.key)];
+  const validPages: ResourceKey[] = ["dashboard", "funds", "dinner", "reports", ...resources.map((resource) => resource.key)];
   return savedPage && validPages.includes(savedPage) ? savedPage : "dashboard";
 }
 
@@ -312,6 +323,23 @@ function SelectBox(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
         props.className
       )}
     />
+  );
+}
+
+function ResponsiveNumberInput({ value, min = 0, onChange }: { value: string | number; min?: number; onChange: (value: string) => void }) {
+  const numericValue = Number(value || 0);
+  function step(delta: number) {
+    onChange(String(Math.max(min, numericValue + delta)));
+  }
+  return (
+    <>
+      <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center gap-2 sm:hidden">
+        <Button type="button" variant="outline" size="icon" className="h-11 w-11" onClick={() => step(-1)}><Minus className="h-4 w-4" /></Button>
+        <Input className="h-11 text-center text-lg font-semibold" type="number" min={min} value={value} onChange={(event) => onChange(event.target.value)} />
+        <Button type="button" variant="outline" size="icon" className="h-11 w-11" onClick={() => step(1)}><Plus className="h-4 w-4" /></Button>
+      </div>
+      <Input className="hidden sm:block" type="number" min={min} value={value} onChange={(event) => onChange(event.target.value)} />
+    </>
   );
 }
 
@@ -1771,7 +1799,7 @@ function fundColumnClassName(column: string) {
   return classes[column] || "";
 }
 
-function DataTable({ rows, columns, actions, renderCell, renderHeader, moneyColumns = [], sortableColumns = [], onSort, rowClassName, onRowClick, stickyActions, columnClassName }: { rows: AnyRow[]; columns: string[]; actions?: (row: AnyRow) => React.ReactNode; renderCell?: (row: AnyRow, column: string) => React.ReactNode | undefined; renderHeader?: (column: string) => React.ReactNode | undefined; moneyColumns?: string[]; sortableColumns?: string[]; onSort?: (column: string) => void; rowClassName?: string | ((row: AnyRow) => string); onRowClick?: (row: AnyRow) => void; stickyActions?: boolean; columnClassName?: (column: string) => string }) {
+function DataTable({ rows, columns, actions, renderCell, renderHeader, moneyColumns = [], sortableColumns = [], onSort, rowClassName, onRowClick, stickyActions, columnClassName, actionColumnClassName }: { rows: AnyRow[]; columns: string[]; actions?: (row: AnyRow) => React.ReactNode; renderCell?: (row: AnyRow, column: string) => React.ReactNode | undefined; renderHeader?: (column: string) => React.ReactNode | undefined; moneyColumns?: string[]; sortableColumns?: string[]; onSort?: (column: string) => void; rowClassName?: string | ((row: AnyRow) => string); onRowClick?: (row: AnyRow) => void; stickyActions?: boolean; columnClassName?: (column: string) => string; actionColumnClassName?: string }) {
   function cellValue(row: AnyRow, column: string) {
     return renderCell?.(row, column) ?? (moneyColumns.includes(column) ? money(row[column]) : displayCell(row, column));
   }
@@ -1782,10 +1810,10 @@ function DataTable({ rows, columns, actions, renderCell, renderHeader, moneyColu
     <div className="max-w-full overflow-x-auto overscroll-x-contain">
       <Table>
         <TableHeader>
-          <TableRow>{columns.map((column) => <TableHead key={column} onClick={() => sortableColumns.includes(column) && onSort?.(column)} className={cn(sortableColumns.includes(column) && "cursor-pointer text-primary", columnClassName?.(column))}>{renderHeader?.(column) ?? label(column)}</TableHead>)}{actions ? <TableHead className={cn(pinActions && "max-md:sticky max-md:right-0 max-md:z-30 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]")}>Action</TableHead> : null}</TableRow>
+          <TableRow>{columns.map((column) => <TableHead key={column} onClick={() => sortableColumns.includes(column) && onSort?.(column)} className={cn(sortableColumns.includes(column) && "cursor-pointer text-primary", columnClassName?.(column))}>{renderHeader?.(column) ?? label(column)}</TableHead>)}{actions ? <TableHead className={cn(pinActions && "max-md:sticky max-md:right-0 max-md:z-30 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]", actionColumnClassName)}>Action</TableHead> : null}</TableRow>
         </TableHeader>
         <TableBody>
-          {rows.length ? rows.map((row) => <TableRow key={rowId(row)} className={cn(typeof rowClassName === "function" ? rowClassName(row) : rowClassName, onRowClick && "cursor-pointer")} onClick={() => onRowClick?.(row)}>{columns.map((column) => <TableCell key={column} className={columnClassName?.(column)}>{cellValue(row, column)}</TableCell>)}{actions ? <TableCell className={cn(pinActions && "max-md:sticky max-md:right-0 max-md:z-20 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]")}>{actions(row)}</TableCell> : null}</TableRow>) : <TableRow><TableCell colSpan={columns.length + (actions ? 1 : 0)} className="text-center text-muted-foreground">No records found</TableCell></TableRow>}
+          {rows.length ? rows.map((row) => <TableRow key={rowId(row)} className={cn(typeof rowClassName === "function" ? rowClassName(row) : rowClassName, onRowClick && "cursor-pointer")} onClick={() => onRowClick?.(row)}>{columns.map((column) => <TableCell key={column} className={columnClassName?.(column)}>{cellValue(row, column)}</TableCell>)}{actions ? <TableCell className={cn(pinActions && "max-md:sticky max-md:right-0 max-md:z-20 max-md:w-[104px] max-md:min-w-[104px] max-md:bg-card max-md:px-1 max-md:shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.7)]", actionColumnClassName)}>{actions(row)}</TableCell> : null}</TableRow>) : <TableRow><TableCell colSpan={columns.length + (actions ? 1 : 0)} className="text-center text-muted-foreground">No records found</TableCell></TableRow>}
         </TableBody>
       </Table>
     </div>
@@ -1823,7 +1851,7 @@ function PaginationControls({ pagination, pageSize, onPageChange, onPageSizeChan
 
 function Modal({ title, children, onClose, wide }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-2 sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
       <div className={cn("max-h-[94vh] w-full overflow-auto rounded-lg bg-background shadow-xl sm:max-h-[90vh]", wide ? "max-w-4xl" : "max-w-2xl")}>
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-background p-3 sm:p-4"><h2 className="min-w-0 break-words font-semibold">{title}</h2><Button variant="ghost" onClick={onClose}>Close</Button></div>
         <div className="p-3 sm:p-4">{children}</div>
@@ -1928,6 +1956,1631 @@ Jay Shree Ram`;
   );
 }
 
+const dinnerStatuses = ["Draft", "Upcoming", "Collection Open", "Collection Closed", "Plate Count Finalized", "Active", "Completed", "Settled", "Cancelled"];
+const contributionTypes = [
+  { value: "complimentary", label: "Fully Complimentary" },
+  { value: "payee_full", label: "Payee Full Payment" },
+  { value: "split", label: "Yuvak Mandal + Payee Split" }
+];
+
+function DinnerPage() {
+  const [events, setEvents] = useState<AnyRow[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selected, setSelected] = useState<AnyRow | null>(null);
+  const [filter, setFilter] = useState("All");
+  const [search, setSearch] = useState("");
+  const [modal, setModal] = useState<"event" | "register" | "coupon" | "checkin" | "settlementPaid" | null>(null);
+  const [editingEvent, setEditingEvent] = useState<AnyRow | null>(null);
+  const [activeTab, setActiveTab] = useState("registrations");
+  const [registrations, setRegistrations] = useState<AnyRow[]>([]);
+  const [report, setReport] = useState<any>(null);
+  const [settlement, setSettlement] = useState<AnyRow | null>(null);
+  const [collectionSummary, setCollectionSummary] = useState<any>(null);
+  const [workingRow, setWorkingRow] = useState<AnyRow | null>(null);
+  const [notice, setNotice] = useState("");
+  const tabContentRef = useRef<HTMLDivElement | null>(null);
+
+  async function loadEvents(nextSelected = selectedId) {
+    const res = await api<{ data: AnyRow[] }>("/dinner/events?page=1&limit=200&sort=-eventDate");
+    setEvents(res.data || []);
+    if (nextSelected) setSelectedId(nextSelected);
+  }
+
+  async function loadSelected() {
+    if (!selectedId) {
+      setSelected(null);
+      setRegistrations([]);
+      setCollectionSummary(null);
+      return;
+    }
+    const [eventRes, regRes, reportRes] = await Promise.all([
+      api<{ data: AnyRow }>(`/dinner/events/${selectedId}`),
+      api<{ data: AnyRow[] }>(`/dinner/events/${selectedId}/registrations`),
+      api<{ data: any }>(`/dinner/events/${selectedId}/report`)
+    ]);
+    setSelected(eventRes.data);
+    setRegistrations(regRes.data || []);
+    setReport(reportRes.data);
+    if (activeTab === "settlement") {
+      api<{ data: AnyRow }>(`/dinner/events/${selectedId}/settlement`).then((res) => setSettlement(res.data)).catch(() => undefined);
+    }
+    if (activeTab === "collections") {
+      api<{ data: AnyRow }>(`/dinner/events/${selectedId}/collections`).then((res) => setCollectionSummary(res.data)).catch(() => undefined);
+    }
+  }
+
+  useEffect(() => {
+    loadEvents().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    loadSelected().catch(() => undefined);
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (selectedId && activeTab === "settlement") {
+      api<{ data: AnyRow }>(`/dinner/events/${selectedId}/settlement`).then((res) => setSettlement(res.data)).catch(() => undefined);
+    }
+    if (selectedId && activeTab === "collections") {
+      api<{ data: AnyRow }>(`/dinner/events/${selectedId}/collections`).then((res) => setCollectionSummary(res.data)).catch(() => undefined);
+    }
+  }, [activeTab, selectedId]);
+
+  useEffect(() => {
+    if (activeTab !== "scanner") return;
+    window.setTimeout(() => tabContentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }, [activeTab]);
+
+  const filteredEvents = events.filter((event) => {
+    const text = `${event.name || ""} ${event.status || ""} ${event.catererId?.name || ""} ${festivalLabel(event.festivalId || event.festival || {})}`.toLowerCase();
+    const matchesSearch = !search || text.includes(search.toLowerCase());
+    const status = String(event.status || "");
+    const matchesFilter = filter === "All" || status === filter || (filter === "Past" && ["Completed", "Settled", "Cancelled"].includes(status)) || (filter === "Current" && ["Collection Open", "Active"].includes(status)) || (filter === "Future" && ["Draft", "Upcoming"].includes(status));
+    return matchesSearch && matchesFilter;
+  });
+  const statusCounts = dinnerStatuses.reduce((acc, status) => ({ ...acc, [status]: events.filter((event) => event.status === status).length }), {} as Record<string, number>);
+
+  async function duplicateEvent(event: AnyRow) {
+    const res = await api<{ data: AnyRow }>(`/dinner/events/${rowId(event)}/duplicate`, { method: "POST" });
+    await loadEvents();
+    setNotice("Dinner event duplicated.");
+  }
+
+  async function setStatus(status: string) {
+    if (!selected) return;
+    if (["Completed", "Cancelled"].includes(status) && !confirm(`Mark this dinner event as ${status}?`)) return;
+    await api(`/dinner/events/${rowId(selected)}/status`, { method: "POST", body: JSON.stringify({ status }) });
+    await loadEvents(rowId(selected));
+    await loadSelected();
+    setNotice(`Event marked ${status}.`);
+  }
+
+  function openEvent(event: AnyRow) {
+    setSelectedId(rowId(event));
+    setDetailOpen(true);
+    setActiveTab("registrations");
+  }
+
+  function closeEventDetail() {
+    setDetailOpen(false);
+    setSelectedId("");
+    setSelected(null);
+    setRegistrations([]);
+    setReport(null);
+    setSettlement(null);
+    setCollectionSummary(null);
+  }
+
+  if (detailOpen) {
+    const detailMetrics = selected?.summary || report?.metrics || {};
+    const paidPlateCount = detailMetrics.paidPlates ?? registrations.filter((row) => ["Paid", "Complimentary"].includes(row.paymentStatus)).reduce((sum, row) => sum + Number(row.plateEntitlement ?? row.adults ?? 0), 0);
+    const unpaidPlateCount = detailMetrics.unpaidPlates ?? registrations.filter((row) => !["Paid", "Complimentary"].includes(row.paymentStatus)).reduce((sum, row) => sum + Number(row.plateEntitlement ?? row.adults ?? 0), 0);
+    return (
+      <section className="space-y-4">
+        <div className="flex flex-nowrap items-center gap-2">
+          <Button className="min-w-0 flex-1 basis-0 px-2 text-xs sm:flex-none sm:basis-auto sm:px-3 sm:text-sm" variant="outline" onClick={closeEventDetail}>Back to Dinner</Button>
+          {selected ? (
+            <div className="flex min-w-0 flex-1 basis-0 items-center gap-2 sm:flex-none sm:basis-auto">
+              <SelectBox className="min-w-0 flex-1 basis-0 text-xs sm:w-52 sm:basis-auto sm:text-sm" value={selected.status || ""} onChange={(event) => setStatus(event.target.value)}>
+                {dinnerStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+              </SelectBox>
+              <Button className="h-10 w-10 shrink-0 px-0 sm:w-auto sm:px-3" variant="outline" title="Edit event" onClick={() => { setEditingEvent(selected); setModal("event"); }}><Pencil className="h-4 w-4" /><span className="hidden sm:inline">Edit</span></Button>
+            </div>
+          ) : null}
+        </div>
+        {notice ? <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm">{notice}</div> : null}
+        {selected ? (
+          <>
+            <Card>
+              <CardContent className="space-y-3 pt-4">
+                <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h1 className="text-xl font-semibold">{selected.name}</h1>
+                      <StatusBadge status={selected.status} />
+                    </div>
+                    <p className="text-sm text-muted-foreground">{festivalLabel(selected.festivalId || selected.festival)} • {formatDateDDMMYYYY(selected.eventDate)} {selected.eventTime || ""} • {selected.venue || "Venue pending"}</p>
+                  </div>
+                  <div className="min-w-0 text-sm text-muted-foreground">{selected.catererId?.name || selected.caterer?.name || "No caterer selected"}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-6">
+                  <DinnerMetric compact icon={Home} label="Houses" value={detailMetrics.registeredHouses || 0} />
+                  <DinnerMetric compact icon={UsersRound} label="Adults / 7+" value={detailMetrics.adultsRegistered || 0} />
+                  <DinnerMetric compact icon={UsersRound} label="Children < 7" value={detailMetrics.childrenBelow7 || 0} />
+                  <DinnerMetric compact icon={Utensils} label="Plates" value={detailMetrics.platesEntitled || 0} subValue={`(Paid ${paidPlateCount} / Unpaid ${unpaidPlateCount})`} className="bg-amber-50 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100" />
+                  <DinnerMetric compact icon={QrCode} label="Coupons" value={detailMetrics.couponsGenerated || 0} className="bg-cyan-50 text-cyan-950 dark:bg-cyan-950/30 dark:text-cyan-100" />
+                  <DinnerMetric compact icon={ScanLine} label="Checked In" value={detailMetrics.platesUsed || 0} className="bg-emerald-50 text-emerald-950 dark:bg-emerald-950/30 dark:text-emerald-100" />
+                </div>
+                <div className="overflow-x-auto">
+                  <div className="inline-flex w-max min-w-full gap-1 rounded-md border bg-muted/40 p-1">
+                    {[
+                      ["registrations", "Registration"],
+                      ["plates", "Final Plates"],
+                      ["scanner", "Gate Scanner"],
+                      ["collections", "Collections"],
+                      ["report", "Report"],
+                      ["settlement", "Settlement"]
+                    ].map(([key, title]) => (
+                      <button key={key} type="button" className={cn("min-h-9 shrink-0 rounded px-3 text-sm font-medium text-muted-foreground hover:bg-background hover:text-foreground", activeTab === key && "bg-primary text-primary-foreground shadow-sm hover:bg-primary hover:text-primary-foreground")} onClick={() => setActiveTab(key)}>{title}</button>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <div ref={tabContentRef} className="scroll-mt-4">
+              {activeTab === "registrations" ? <DinnerRegistrationPanel event={selected} registrations={registrations} onRegister={(row) => { setWorkingRow(row); setModal("register"); }} onPreview={(row) => { setWorkingRow(row); setModal("coupon"); }} onRefresh={loadSelected} /> : null}
+              {activeTab === "plates" ? <DinnerPlatePanel event={selected} metrics={detailMetrics} onRefresh={async () => { await loadEvents(rowId(selected)); await loadSelected(); }} /> : null}
+              {activeTab === "scanner" ? <DinnerScannerPanel event={selected} onOpen={(row) => { setWorkingRow(row); setModal("checkin"); }} onRefresh={loadSelected} /> : null}
+              {activeTab === "collections" ? <DinnerCollectionPanel summary={collectionSummary} registrations={registrations} onRefresh={async () => {
+                const res = await api<{ data: AnyRow }>(`/dinner/events/${rowId(selected)}/collections`);
+                setCollectionSummary(res.data);
+              }} /> : null}
+              {activeTab === "report" ? <DinnerReportPanel report={report} /> : null}
+              {activeTab === "settlement" ? <DinnerSettlementPanel event={selected} settlement={settlement} setSettlement={setSettlement} onMarkPaid={() => setModal("settlementPaid")} onMarkUnpaid={async () => {
+                if (!confirm("Mark this caterer settlement as unpaid? This will remove the linked dinner settlement expense.")) return;
+                const res = await api<{ data: AnyRow }>(`/dinner/events/${rowId(selected)}/settlement/unpaid`, { method: "POST" });
+                setSettlement(res.data);
+                setNotice("Settlement marked unpaid.");
+                await loadEvents(rowId(selected));
+                await loadSelected();
+              }} /> : null}
+            </div>
+          </>
+        ) : <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">Loading dinner event...</CardContent></Card>}
+        {modal === "event" ? <DinnerEventModal event={editingEvent} onClose={() => setModal(null)} onSaved={async (id) => { setModal(null); await loadEvents(id); await loadSelected(); }} /> : null}
+        {modal === "register" && selected ? <DinnerRegistrationModal event={selected} registration={workingRow} onClose={() => setModal(null)} onSaved={async () => { setModal(null); await loadSelected(); }} /> : null}
+        {modal === "coupon" && workingRow ? <DinnerCouponPreview registration={workingRow} onClose={() => setModal(null)} /> : null}
+        {modal === "checkin" && workingRow ? <DinnerCheckInModal registration={workingRow} onClose={() => setModal(null)} onSaved={async () => { setModal(null); await loadSelected(); }} /> : null}
+        {modal === "settlementPaid" && selected ? <DinnerSettlementPaidModal event={selected} onClose={() => setModal(null)} onSaved={async () => { setModal(null); const res = await api<{ data: AnyRow }>(`/dinner/events/${rowId(selected)}/settlement`); setSettlement(res.data); await loadEvents(rowId(selected)); }} /> : null}
+      </section>
+    );
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-semibold">Dinner Management</h1>
+        <Button className="w-full sm:w-auto" onClick={() => { setEditingEvent(null); setModal("event"); }}><Plus className="h-4 w-4" /> Create Dinner Event</Button>
+      </div>
+      {notice ? <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm">{notice}</div> : null}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <DinnerMetric compact icon={ClipboardList} label="Draft" value={statusCounts.Draft || 0} />
+        <DinnerMetric compact icon={CalendarDays} label="Upcoming" value={statusCounts.Upcoming || 0} />
+        <DinnerMetric compact icon={Utensils} label="Active" value={statusCounts.Active || 0} />
+        <DinnerMetric compact icon={CheckCircle2} label="Completed" value={statusCounts.Completed || 0} />
+        <DinnerMetric compact icon={Trash2} label="Cancelled" value={statusCounts.Cancelled || 0} />
+      </div>
+      <Card className="min-w-0 overflow-hidden">
+        <CardHeader className="border-b"><CardTitle>Dinner Events</CardTitle></CardHeader>
+        <CardContent className="space-y-3 p-3 sm:p-4">
+          <div className="grid gap-2 sm:flex sm:flex-wrap">
+            <SelectBox className="sm:w-40" value={filter} onChange={(event) => setFilter(event.target.value)}>
+              {["All", "Draft", "Upcoming", "Active", "Past", "Current", "Future", "Cancelled"].map((item) => <option key={item} value={item}>{item}</option>)}
+            </SelectBox>
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-8" placeholder="Search event" value={search} onChange={(event) => setSearch(event.target.value)} />
+            </div>
+          </div>
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader><TableRow><TableHead className="min-w-44">Event</TableHead><TableHead className="min-w-32">Event Date & Time</TableHead><TableHead className="min-w-36">Caterer</TableHead><TableHead className="min-w-28">Pricing</TableHead><TableHead className="min-w-24">Collections</TableHead><TableHead className="min-w-32">Collection Deadline</TableHead><TableHead className="min-w-28">Status</TableHead><TableHead className="min-w-20">Action</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {filteredEvents.length ? filteredEvents.map((event) => (
+                  <TableRow key={rowId(event)} className="cursor-pointer" onClick={() => openEvent(event)}>
+                    <TableCell>
+                      <div className="font-medium">{event.name}</div>
+                      <div className="text-xs text-muted-foreground">{festivalLabel(event.festivalId || event.festival)}</div>
+                      <div className="text-xs text-muted-foreground">{event.venue || "Venue pending"}</div>
+                    </TableCell>
+                    <TableCell className="text-sm">{formatDateDDMMYYYY(event.eventDate)}{event.eventTime ? ` ${event.eventTime}` : ""}</TableCell>
+                    <TableCell>{event.catererId?.name || event.caterer?.name || "No caterer"}</TableCell>
+                    <TableCell className="text-sm">{event.catererPricingType === "fixed" ? money(event.fixedContractAmount) : `${money(event.catererRatePerPlate)} / plate`}</TableCell>
+                    <TableCell className="text-sm font-semibold">{event.summary?.collectionsMade || 0}</TableCell>
+                    <TableCell className="text-sm">{formatDateDDMMYYYY(event.collectionDeadline)}</TableCell>
+                    <TableCell><StatusBadge status={event.status} /></TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="outline" size="icon" title="Edit" onClick={(click) => { click.stopPropagation(); setEditingEvent(event); setModal("event"); }}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" title="Duplicate" onClick={(click) => { click.stopPropagation(); duplicateEvent(event); }}><Copy className="h-4 w-4" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )) : <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No dinner events found.</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+      {modal === "event" ? <DinnerEventModal event={editingEvent} onClose={() => setModal(null)} onSaved={async (id) => { setModal(null); await loadEvents(id); setSelectedId(id); setDetailOpen(true); }} /> : null}
+      {modal === "register" && selected ? <DinnerRegistrationModal event={selected} registration={workingRow} onClose={() => setModal(null)} onSaved={async () => { setModal(null); await loadSelected(); }} /> : null}
+      {modal === "coupon" && workingRow ? <DinnerCouponPreview registration={workingRow} onClose={() => setModal(null)} /> : null}
+      {modal === "checkin" && workingRow ? <DinnerCheckInModal registration={workingRow} onClose={() => setModal(null)} onSaved={async () => { setModal(null); await loadSelected(); }} /> : null}
+      {modal === "settlementPaid" && selected ? <DinnerSettlementPaidModal event={selected} onClose={() => setModal(null)} onSaved={async () => { setModal(null); const res = await api<{ data: AnyRow }>(`/dinner/events/${rowId(selected)}/settlement`); setSettlement(res.data); await loadEvents(rowId(selected)); }} /> : null}
+    </section>
+  );
+}
+
+function DinnerMetric({ label, value, icon: Icon, compact, className, subValue, valueClassName }: { label: string; value: unknown; icon?: typeof Home; compact?: boolean; className?: string; subValue?: string; valueClassName?: string }) {
+  return (
+    <div className={cn("rounded-md border bg-card", compact ? "flex min-w-0 items-center gap-2 p-2" : "p-3", className)}>
+      {Icon ? <Icon className={cn("shrink-0 text-primary", compact ? "h-4 w-4" : "h-5 w-5")} /> : null}
+      <div className="min-w-0">
+        <div className={cn("font-medium uppercase text-muted-foreground", compact ? "truncate text-[11px] leading-tight" : "text-xs")}>{label}</div>
+        <div className={cn("flex flex-wrap items-baseline gap-1 break-words font-bold", compact ? "text-base leading-tight" : "mt-1 text-xl", valueClassName)}>
+          <span>{typeof value === "number" ? <CountUpText value={value} /> : String(value || 0)}</span>
+          {subValue ? <span className={cn("font-medium text-muted-foreground", compact ? "text-[10px] leading-tight" : "text-xs")}>{subValue}</span> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const normalized = String(status || "Draft");
+  const className = normalized === "Not Paid" || normalized.includes("Pending") || ["Draft", "Upcoming", "Collection Open"].includes(normalized)
+    ? "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-100"
+    : ["Paid", "Complimentary", "Collected", "Active", "Completed", "Settled", "Generated", "Sent"].includes(normalized)
+    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-100"
+    : "bg-muted text-muted-foreground";
+  return <span className={cn("inline-flex min-h-6 items-center rounded px-2 py-0.5 text-xs font-semibold", className)}>{normalized}</span>;
+}
+
+function DinnerEventModal({ event, onClose, onSaved }: { event: AnyRow | null; onClose: () => void; onSaved: (id: string) => void }) {
+  const [festivals, setFestivals] = useState<AnyRow[]>([]);
+  const [caterers, setCaterers] = useState<AnyRow[]>([]);
+  const [addCaterer, setAddCaterer] = useState(false);
+  const [error, setError] = useState("");
+  const [activeEventTab, setActiveEventTab] = useState("details");
+  const [form, setForm] = useState<AnyRow>({
+    festivalId: rowId(event?.festivalId || event?.festival || {}),
+    catererId: rowId(event?.catererId || event?.caterer || {}),
+    name: event?.name || "",
+    eventDate: String(event?.eventDate || "").slice(0, 10),
+    eventTime: event?.eventTime || "",
+    venue: event?.venue || "",
+    dinnerType: event?.dinnerType || "",
+    notes: event?.notes || "",
+    status: event?.status || "Draft",
+    catererPricingType: event?.catererPricingType || "per_plate",
+    catererRatePerPlate: event?.catererRatePerPlate || "",
+    expectedPlates: event?.expectedPlates || "",
+    fixedContractAmount: event?.fixedContractAmount || "",
+    advancePaid: event?.advancePaid || "",
+    collectionStartDate: String(event?.collectionStartDate || "").slice(0, 10),
+    collectionDeadline: String(event?.collectionDeadline || "").slice(0, 10),
+    couponDeadline: String(event?.couponDeadline || "").slice(0, 10),
+    showCouponNote: event?.showCouponNote ?? true,
+    couponImportantNote: event?.couponImportantNote || "Children below 7 are complimentary and do not receive separate plates.",
+    finalPlateSubmissionAt: String(event?.finalPlateSubmissionAt || "").slice(0, 16),
+    contributionType: event?.contributionType || "payee_full",
+    memberContributionRate: event?.memberContributionRate || "",
+    payeePercent: event?.payeePercent ?? 100,
+    mandalPercent: event?.mandalPercent ?? 0
+  });
+
+  useEffect(() => {
+    Promise.all([
+      api<{ data: AnyRow[] }>("/festivals?page=1&limit=300"),
+      api<{ data: AnyRow[] }>("/dinner/caterers?page=1&limit=300")
+    ]).then(([festivalRes, catererRes]) => {
+      setFestivals(festivalRes.data || []);
+      setCaterers(catererRes.data || []);
+    }).catch(() => undefined);
+  }, []);
+
+  const festivalOptions = festivals.map((festival) => ({ value: rowId(festival), label: festivalLabel(festival), search: `${festival.name} ${festival.year}` }));
+  const catererOptions = caterers.map((caterer) => ({ value: rowId(caterer), label: caterer.name, search: `${caterer.contactPerson || ""} ${caterer.primaryMobile || ""}` }));
+  const adultsPreview = Number(form.expectedPlates || 1);
+  const contributionBase = adultsPreview * Number(form.memberContributionRate || 0);
+  const payeePreview = form.contributionType === "complimentary" ? 0 : form.contributionType === "split" ? contributionBase * Number(form.payeePercent || 0) / 100 : contributionBase;
+  const mandalPreview = contributionBase - payeePreview;
+  const eventTabs = [
+    { key: "details", title: "Event Details" },
+    { key: "caterer", title: "Caterer & Pricing" },
+    { key: "deadlines", title: "Deadlines" },
+    { key: "contribution", title: "Contribution" }
+  ];
+  const activeEventTabIndex = Math.max(0, eventTabs.findIndex((tab) => tab.key === activeEventTab));
+
+  function setValue(key: string, value: string | boolean) {
+    setForm((current: AnyRow) => {
+      const next = { ...current, [key]: value };
+      if (key === "contributionType" && value === "payee_full") {
+        next.payeePercent = 100;
+        next.mandalPercent = 0;
+      }
+      if (key === "contributionType" && value === "complimentary") {
+        next.payeePercent = 0;
+        next.mandalPercent = 100;
+        next.paymentMethod = "";
+        next.volunteerId = "";
+        next.transactionReference = "";
+      }
+      if (key === "payeePercent") next.mandalPercent = Math.max(0, 100 - Number(value || 0));
+      return next;
+    });
+  }
+
+  async function submit(eventSubmit: FormEvent) {
+    eventSubmit.preventDefault();
+    setError("");
+    if (!form.festivalId || !form.name || !form.eventDate) {
+      setError("Festival, event name, and event date are required.");
+      setActiveEventTab("details");
+      return;
+    }
+    if (form.contributionType === "split" && Number(form.payeePercent || 0) + Number(form.mandalPercent || 0) !== 100) {
+      setError("Payee and Yuvak Mandal split must total 100%.");
+      setActiveEventTab("contribution");
+      return;
+    }
+    try {
+      const payload = {
+        ...form,
+        catererRatePerPlate: form.catererPricingType === "per_plate" ? form.catererRatePerPlate || 0 : 0,
+        expectedPlates: form.catererPricingType === "per_plate" ? form.expectedPlates || 0 : 0,
+        fixedContractAmount: form.catererPricingType === "fixed" ? form.fixedContractAmount || 0 : 0,
+        advancePaid: form.advancePaid || 0,
+        memberContributionRate: form.memberContributionRate || 0,
+        payeePercent: form.payeePercent || 0,
+        mandalPercent: form.mandalPercent || 0
+      };
+      const res = await api<{ data: AnyRow }>(event ? `/dinner/events/${rowId(event)}` : "/dinner/events", { method: event ? "PUT" : "POST", body: JSON.stringify(payload) });
+      onSaved(rowId(res.data));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save dinner event");
+    }
+  }
+
+  return (
+    <Modal title={event ? "Edit Dinner Event" : "Create Dinner Event"} onClose={onClose} wide>
+      <form className="space-y-4" onSubmit={submit}>
+        <div className="overflow-x-auto">
+          <div className="inline-flex min-w-full gap-1 rounded-md border bg-muted/40 p-1">
+            {eventTabs.map((tab, index) => (
+              <button
+                className={cn("min-h-9 shrink-0 rounded px-3 text-sm font-medium hover:bg-background", activeEventTab === tab.key && "bg-background shadow-sm")}
+                key={tab.key}
+                onClick={() => setActiveEventTab(tab.key)}
+                type="button"
+              >
+                {index + 1}. {tab.title}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {activeEventTab === "details" ? (
+          <div className="grid gap-3 rounded-md border p-3 md:grid-cols-2">
+            <h3 className="font-semibold md:col-span-2">Event Details</h3>
+            <Field label="Festival / Year"><SearchableSelect value={String(form.festivalId || "")} onChange={(value) => setValue("festivalId", value)} options={festivalOptions} placeholder="Search festival" /></Field>
+            <Field label="Event Name"><Input value={form.name} onChange={(event) => setValue("name", event.target.value)} /></Field>
+            <Field label="Event Date"><Input type="date" value={form.eventDate} onChange={(event) => setValue("eventDate", event.target.value)} /></Field>
+            <Field label="Event Time"><Input type="time" value={form.eventTime} onChange={(event) => setValue("eventTime", event.target.value)} /></Field>
+            <Field label="Venue"><Input value={form.venue} onChange={(event) => setValue("venue", event.target.value)} /></Field>
+            <Field label="Dinner Type"><Input value={form.dinnerType} onChange={(event) => setValue("dinnerType", event.target.value)} placeholder="Community dinner, Prasad, Garba dinner" /></Field>
+            <Field label="Status"><SelectBox value={form.status} onChange={(event) => setValue("status", event.target.value)}>{dinnerStatuses.map((status) => <option key={status} value={status}>{status}</option>)}</SelectBox></Field>
+            <Field label="Notes"><Input value={form.notes} onChange={(event) => setValue("notes", event.target.value)} /></Field>
+          </div>
+        ) : null}
+
+        {activeEventTab === "caterer" ? (
+          <div className="rounded-md border p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-semibold">Caterer & Pricing</h3>
+              <Button type="button" variant="outline" onClick={() => setAddCaterer(true)}><Plus className="h-4 w-4" /> Add New Caterer</Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Caterer"><SearchableSelect value={String(form.catererId || "")} onChange={(value) => setValue("catererId", value)} options={catererOptions} placeholder="Search caterer" /></Field>
+              <Field label="Pricing Model"><SelectBox value={form.catererPricingType} onChange={(event) => setValue("catererPricingType", event.target.value)}><option value="per_plate">Per Plate</option><option value="fixed">Fixed Amount</option></SelectBox></Field>
+              {form.catererPricingType === "per_plate" ? (
+                <>
+                  <Field label="Rate Per Plate"><Input type="number" value={form.catererRatePerPlate} onChange={(event) => setValue("catererRatePerPlate", event.target.value)} /></Field>
+                  <Field label="Expected Plates"><Input type="number" value={form.expectedPlates} onChange={(event) => setValue("expectedPlates", event.target.value)} /></Field>
+                </>
+              ) : <Field label="Fixed Contract Amount"><Input type="number" value={form.fixedContractAmount} onChange={(event) => setValue("fixedContractAmount", event.target.value)} /></Field>}
+              <Field label="Advance Paid"><Input type="number" value={form.advancePaid} onChange={(event) => setValue("advancePaid", event.target.value)} /></Field>
+            </div>
+          </div>
+        ) : null}
+
+        {activeEventTab === "deadlines" ? (
+          <div className="grid gap-3 rounded-md border p-3 md:grid-cols-2">
+            <h3 className="font-semibold md:col-span-2">Deadlines</h3>
+            <Field label="Collection Start Date"><Input type="date" value={form.collectionStartDate} onChange={(event) => setValue("collectionStartDate", event.target.value)} /></Field>
+            <Field label="Collection Deadline"><Input type="date" value={form.collectionDeadline} onChange={(event) => setValue("collectionDeadline", event.target.value)} /></Field>
+            <Field label="Coupon Generation Deadline"><Input type="date" value={form.couponDeadline} onChange={(event) => setValue("couponDeadline", event.target.value)} /></Field>
+            <Field label="Final Plate Submission Date / Time"><Input type="datetime-local" value={form.finalPlateSubmissionAt} onChange={(event) => setValue("finalPlateSubmissionAt", event.target.value)} /></Field>
+            <Field label="Show Coupon Note"><input className="h-5 w-5 accent-primary" type="checkbox" checked={Boolean(form.showCouponNote)} onChange={(event) => setValue("showCouponNote", event.target.checked)} /></Field>
+            {form.showCouponNote ? <Field label="Coupon Important Note"><Input value={form.couponImportantNote} onChange={(event) => setValue("couponImportantNote", event.target.value)} /></Field> : null}
+          </div>
+        ) : null}
+
+        {activeEventTab === "contribution" ? (
+          <div className="grid gap-3 rounded-md border p-3 md:grid-cols-2">
+            <h3 className="font-semibold md:col-span-2">Contribution Model</h3>
+            <Field label="Contribution Type"><SelectBox value={form.contributionType} onChange={(event) => setValue("contributionType", event.target.value)}>{contributionTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</SelectBox></Field>
+            <Field label="Member Contribution Rate"><Input type="number" value={form.memberContributionRate} onChange={(event) => setValue("memberContributionRate", event.target.value)} /></Field>
+            {form.contributionType === "split" ? <Field label="Payee %"><Input type="number" value={form.payeePercent} onChange={(event) => setValue("payeePercent", event.target.value)} /></Field> : null}
+            {form.contributionType === "split" ? <Field label="Yuvak Mandal %"><Input type="number" value={form.mandalPercent} onChange={(event) => setValue("mandalPercent", event.target.value)} /></Field> : null}
+            <div className="rounded-md bg-muted p-3 text-sm md:col-span-2">Preview for {adultsPreview} eligible attendee(s): Payee {money(payeePreview)} • Yuvak Mandal {money(mandalPreview)}</div>
+          </div>
+        ) : null}
+
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="grid gap-2 sm:flex sm:flex-wrap">
+            <Button type="button" variant="outline" disabled={activeEventTabIndex <= 0} onClick={() => setActiveEventTab(eventTabs[activeEventTabIndex - 1].key)}>Back</Button>
+            <Button type="button" variant="outline" disabled={activeEventTabIndex >= eventTabs.length - 1} onClick={() => setActiveEventTab(eventTabs[activeEventTabIndex + 1].key)}>Next</Button>
+          </div>
+          <div className="grid gap-2 sm:flex sm:flex-wrap">
+            <Button type="submit">Save Event</Button>
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          </div>
+        </div>
+      </form>
+      {addCaterer ? <AddCatererModal onClose={() => setAddCaterer(false)} onCreated={(caterer) => { setCaterers((current) => [...current, caterer]); setValue("catererId", rowId(caterer)); setAddCaterer(false); }} /> : null}
+    </Modal>
+  );
+}
+
+function AddCatererModal({ onClose, onCreated }: { onClose: () => void; onCreated: (caterer: AnyRow) => void }) {
+  const [form, setForm] = useState<AnyRow>({ name: "", contactPerson: "", primaryMobile: "", alternateMobile: "", email: "", address: "", notes: "" });
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    try {
+      const res = await api<{ data: AnyRow }>("/dinner/caterers", { method: "POST", body: JSON.stringify(form) });
+      onCreated(res.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create caterer");
+    }
+  }
+  return (
+    <Modal title="Add New Caterer" onClose={onClose}>
+      <form className="grid gap-3 md:grid-cols-2" onSubmit={submit}>
+        {[
+          ["name", "Caterer Name *"],
+          ["contactPerson", "Contact Person *"],
+          ["primaryMobile", "Primary Mobile *"],
+          ["alternateMobile", "Alternate Mobile"],
+          ["email", "Email"],
+          ["address", "Address"],
+          ["notes", "Notes"]
+        ].map(([key, labelText]) => <Field key={key} label={labelText}><Input value={form[key] || ""} onChange={(event) => setForm((current: AnyRow) => ({ ...current, [key]: event.target.value }))} /></Field>)}
+        {error ? <p className="text-sm text-destructive md:col-span-2">{error}</p> : null}
+        <div className="grid gap-2 md:col-span-2 sm:flex"><Button type="submit">Save Caterer</Button><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
+function DinnerRegistrationPanel({ event, registrations, onRegister, onPreview, onRefresh }: { event: AnyRow; registrations: AnyRow[]; onRegister: (row: AnyRow | null) => void; onPreview: (row: AnyRow) => void; onRefresh: () => void }) {
+  const [housePickerOpen, setHousePickerOpen] = useState(false);
+  const [paymentView, setPaymentView] = useState<"all" | "unpaid" | "checkedIn">("all");
+  const unpaidRegistrations = registrations.filter((row) => !["Paid", "Complimentary"].includes(row.paymentStatus));
+  const checkedInRegistrations = registrations.filter((row) => Number(row.platesUsed || 0) > 0 || Number(row.adultsCheckedIn || 0) > 0 || Number(row.childrenCheckedIn || 0) > 0);
+  const visibleRegistrations = paymentView === "unpaid" ? unpaidRegistrations : paymentView === "checkedIn" ? checkedInRegistrations : registrations;
+  const showMandalColumns = event.contributionType !== "payee_full";
+  const registrationColumns = ["houseId", "plateEntitlement", "payeeAmount", "volunteerId", "existingMemberCount", "adults", "childrenBelow7", "totalAttending", "platesUsed", ...(showMandalColumns ? ["contributionType", "mandalAmount"] : []), "couponStatus", "deliveryStatus"];
+  const moneyColumns = ["payeeAmount", ...(showMandalColumns ? ["mandalAmount"] : [])];
+
+  async function removeRegistration(row: AnyRow) {
+    const house = row.houseId || row.house || {};
+    const name = `${house.houseNumber || "this house"}${house.ownerName ? ` - ${house.ownerName}` : ""}`;
+    if (!confirm(`Delete dinner registration for ${name}? This removes the collection/payment details and QR coupon for this dinner event only.`)) return;
+    await api(`/dinner/registrations/${rowId(row)}`, { method: "DELETE" });
+    await onRefresh();
+  }
+
+  async function generateCoupon(row: AnyRow) {
+    await api(`/dinner/registrations/${rowId(row)}/coupon`, { method: "POST" });
+    await onRefresh();
+  }
+
+  async function sendCoupon(row: AnyRow) {
+    await api(`/dinner/registrations/${rowId(row)}/coupon/send`, {
+      method: "POST",
+      body: JSON.stringify({ deliveryChannel: "WhatsApp", sentTo: row.houseId?.phone || row.house?.phone })
+    });
+    await onRefresh();
+  }
+
+  return (
+    <Card>
+      <CardHeader className="grid gap-3 border-b sm:flex sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle>Registered Houses</CardTitle>
+        <div className="grid gap-2 sm:grid-flow-col sm:auto-cols-max">
+          <Button className="w-full sm:w-auto" variant="outline" onClick={onRefresh}><RefreshCcw className="h-4 w-4" /> Refresh</Button>
+          <Button className="w-full sm:w-auto" onClick={() => setHousePickerOpen(true)}><Plus className="h-4 w-4" /> Add Registration</Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-4">
+        <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="inline-flex rounded-md border bg-muted/40 p-1">
+            <button type="button" className={cn("rounded px-3 py-1.5 text-sm font-medium", paymentView === "all" && "bg-background shadow-sm")} onClick={() => setPaymentView("all")}>All ({registrations.length})</button>
+            <button type="button" className={cn("rounded px-3 py-1.5 text-sm font-medium", paymentView === "unpaid" && "bg-background shadow-sm")} onClick={() => setPaymentView("unpaid")}>Not Paid ({unpaidRegistrations.length})</button>
+            <button type="button" className={cn("rounded px-3 py-1.5 text-sm font-medium", paymentView === "checkedIn" && "bg-background shadow-sm")} onClick={() => setPaymentView("checkedIn")}>Checked In ({checkedInRegistrations.length})</button>
+          </div>
+          {paymentView === "unpaid" ? <p className="text-sm text-muted-foreground">Registered houses pending full collection.</p> : null}
+          {paymentView === "checkedIn" ? <p className="text-sm text-muted-foreground">Registered houses with gate check-in history.</p> : null}
+        </div>
+        <DataTable
+          rows={visibleRegistrations}
+          columns={registrationColumns}
+          moneyColumns={moneyColumns}
+          renderHeader={(column) => ({
+            existingMemberCount: "Total Member",
+            plateEntitlement: "Plates",
+            payeeAmount: "Amount",
+            volunteerId: "Collected By",
+            adults: "Adults > 7",
+            childrenBelow7: "Kids < 7",
+            totalAttending: "Total Attending",
+            platesUsed: "Checked In",
+            deliveryStatus: "QR Delivered"
+          }[column])}
+          columnClassName={(column) => ({
+            houseId: "min-w-28",
+            plateEntitlement: "min-w-16 text-center",
+            payeeAmount: "min-w-24",
+            volunteerId: "min-w-28",
+            existingMemberCount: "min-w-24 text-center",
+            adults: "min-w-20 text-center",
+            childrenBelow7: "min-w-20 text-center",
+            totalAttending: "min-w-24 text-center",
+            platesUsed: "min-w-20 text-center",
+            contributionType: "min-w-28",
+            mandalAmount: "min-w-28",
+            couponStatus: "min-w-28",
+            deliveryStatus: "min-w-28"
+          }[column] || "")}
+          actionColumnClassName="max-md:w-[122px] max-md:min-w-[122px] md:w-[122px] md:min-w-[122px]"
+          renderCell={(row, column) => {
+            if (column === "houseId") return <span className="font-bold">{displayCell(row, column)}</span>;
+            if (column === "plateEntitlement") return <span className="font-bold text-destructive">{row.plateEntitlement}</span>;
+            if (column === "payeeAmount") return <span className="inline-flex flex-wrap items-center gap-1.5"><span className="font-bold">{money(row.payeeAmount)}</span><StatusBadge status={["Paid", "Complimentary"].includes(row.paymentStatus) ? row.paymentStatus : "Not Paid"} /></span>;
+            if (column === "volunteerId") return row.volunteerId?.name || row.volunteer?.name || "-";
+            if (column === "platesUsed") return <span className={cn("font-semibold", Number(row.platesUsed || 0) > 0 && "text-emerald-700 dark:text-emerald-300")}>{row.platesUsed || 0}</span>;
+            if (["paymentStatus", "couponStatus", "deliveryStatus"].includes(column)) return <StatusBadge status={row[column]} />;
+            return undefined;
+          }}
+          actions={(row) => (
+            <div className="flex gap-0.5">
+              <Button className="h-7 min-h-7 w-7 sm:h-7 sm:min-h-7 sm:w-7" variant="outline" size="icon" title="Edit registration" onClick={() => onRegister(row)}><Pencil className="h-3.5 w-3.5" /></Button>
+              {row.couponStatus === "Not Generated" ? (
+                <Button className="h-7 min-h-7 w-7 sm:h-7 sm:min-h-7 sm:w-7" variant="outline" size="icon" title="Generate QR coupon" disabled={!["Paid", "Complimentary"].includes(row.paymentStatus)} onClick={() => generateCoupon(row)}><QrCode className="h-3.5 w-3.5" /></Button>
+              ) : (
+                <Button className="h-7 min-h-7 w-7 sm:h-7 sm:min-h-7 sm:w-7" variant="outline" size="icon" title="Preview QR coupon" onClick={() => onPreview(row)}><QrCode className="h-3.5 w-3.5" /></Button>
+              )}
+              <Button className="h-7 min-h-7 w-7 sm:h-7 sm:min-h-7 sm:w-7" variant="outline" size="icon" title="Mark coupon sent" disabled={row.couponStatus === "Not Generated"} onClick={() => sendCoupon(row)}><Send className="h-3.5 w-3.5" /></Button>
+              <Button className="h-7 min-h-7 w-7 sm:h-7 sm:min-h-7 sm:w-7" variant="ghost" size="icon" title="Delete registration, collection, and QR" onClick={() => removeRegistration(row)}><Trash2 className="h-3.5 w-3.5" /></Button>
+            </div>
+          )}
+        />
+        {housePickerOpen ? (
+          <DinnerHousePickerModal
+            registrations={registrations}
+            onClose={() => setHousePickerOpen(false)}
+            onSelect={(row) => {
+              setHousePickerOpen(false);
+              onRegister(row);
+            }}
+          />
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DinnerHousePickerModal({ registrations, onClose, onSelect }: { registrations: AnyRow[]; onClose: () => void; onSelect: (row: AnyRow) => void }) {
+  const [search, setSearch] = useState("");
+  const [houses, setHouses] = useState<AnyRow[]>([]);
+  const [housePage, setHousePage] = useState(1);
+  const [housePageSize, setHousePageSize] = useState(10);
+  const [housePagination, setHousePagination] = useState<Pagination>({ total: 0, page: 1, limit: 10, totalPages: 1 });
+
+  async function loadHouses() {
+    const res = await api<{ data: AnyRow[]; pagination?: Pagination }>(`/house${toQuery({ page: housePage, limit: housePageSize, search })}`);
+    setHouses(res.data || []);
+    setHousePagination(res.pagination || { total: res.data?.length || 0, page: housePage, limit: housePageSize, totalPages: 1 });
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadHouses().catch(() => {
+        setHouses([]);
+        setHousePagination({ total: 0, page: 1, limit: housePageSize, totalPages: 1 });
+      });
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [housePage, housePageSize, search]);
+
+  useEffect(() => {
+    setHousePage(1);
+  }, [search, housePageSize]);
+
+  function pickHouse(house: AnyRow) {
+    const existing = registrations.find((row) => rowId(row.houseId || row.house || {}) === rowId(house));
+    onSelect(existing || { house });
+  }
+
+  return (
+    <Modal title="Add House Registration" onClose={onClose} wide>
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input autoFocus className="pl-8" placeholder="Search by House Number, Mobile Number, or Name" value={search} onChange={(event) => setSearch(event.target.value)} />
+        </div>
+        <DataTable
+          rows={houses}
+          columns={["houseNumber", "ownerName", "phone"]}
+          actions={(house) => {
+            const existing = registrations.find((row) => rowId(row.houseId || row.house || {}) === rowId(house));
+            return <Button variant="outline" onClick={() => pickHouse(house)}>{existing ? "Edit" : "Register"}</Button>;
+          }}
+        />
+        <PaginationControls
+          pagination={housePagination}
+          pageSize={housePageSize}
+          onPageChange={setHousePage}
+          onPageSizeChange={setHousePageSize}
+        />
+      </div>
+    </Modal>
+  );
+}
+
+function DinnerRegistrationModal({ event, registration, onClose, onSaved }: { event: AnyRow; registration: AnyRow | null; onClose: () => void; onSaved: () => void }) {
+  const house = registration?.house || registration?.houseId || {};
+  const role = localStorage.getItem("role");
+  const currentUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}") as AnyRow;
+    } catch {
+      return {};
+    }
+  })();
+  const isVolunteerLogin = role === "volunteer";
+  const currentVolunteerId = isVolunteerLogin ? String(currentUser.id || "") : "";
+  function calculatedReceivedAmount(source: AnyRow) {
+    const sourceAdults = Number(source.adults || 0);
+    const sourceRate = Number(source.memberContributionRate || 0);
+    const sourceBase = sourceAdults * sourceRate;
+    if (source.contributionType === "complimentary") return "0";
+    if (source.contributionType === "split") return String(sourceBase * Number(source.payeePercent || 0) / 100);
+    return String(sourceBase);
+  }
+  const initialForm = {
+    houseId: rowId(house),
+    existingMemberCount: registration?.existingMemberCount || "",
+    adults: registration?.adults || 0,
+    childrenBelow7: registration?.childrenBelow7 || 0,
+    contributionType: registration?.contributionType || event.contributionType || "payee_full",
+    memberContributionRate: registration?.memberContributionRate ?? event.memberContributionRate ?? 0,
+    payeePercent: registration?.payeePercent ?? event.payeePercent ?? 100,
+    mandalPercent: registration?.mandalPercent ?? event.mandalPercent ?? 0,
+    volunteerId: currentVolunteerId || rowId(registration?.volunteerId || registration?.volunteer || {}),
+    paymentMethod: registration?.paymentMethod || "",
+    transactionReference: registration?.transactionReference || "",
+    notes: registration?.notes || ""
+  };
+  const [form, setForm] = useState<AnyRow>({
+    ...initialForm,
+    amountReceived: registration ? registration.amountReceived || "" : calculatedReceivedAmount(initialForm),
+  });
+  const [error, setError] = useState("");
+  const [volunteers, setVolunteers] = useState<AnyRow[]>([]);
+  const volunteerOptions = [
+    ...(currentVolunteerId && !volunteers.some((volunteer) => rowId(volunteer) === currentVolunteerId) ? [{ value: currentVolunteerId, label: currentUser.name || "Current Volunteer", search: currentUser.phone || "" }] : []),
+    ...volunteers.map((volunteer) => ({ value: rowId(volunteer), label: volunteer.name, search: volunteer.phone }))
+  ];
+  const adults = Number(form.adults || 0);
+  const children = Number(form.childrenBelow7 || 0);
+  const base = adults * Number(form.memberContributionRate || 0);
+  const payeeAmount = form.contributionType === "complimentary" ? 0 : form.contributionType === "split" ? base * Number(form.payeePercent || 0) / 100 : base;
+  const mandalAmount = base - payeeAmount;
+  const balance = Math.max(0, payeeAmount - Number(form.amountReceived || 0));
+  const checkedInAdults = Number(registration?.adultsCheckedIn || 0);
+  const checkedInChildren = Number(registration?.childrenCheckedIn || 0);
+  const checkedInPlates = Number(registration?.platesUsed || 0);
+  const hasCheckIn = checkedInAdults > 0 || checkedInChildren > 0 || checkedInPlates > 0;
+  const collectorLocked = isVolunteerLogin || form.contributionType === "complimentary";
+  useEffect(() => {
+    api<{ data: AnyRow[] }>("/volunteers?page=1&limit=300").then((res) => setVolunteers(res.data || [])).catch(() => setVolunteers([]));
+  }, []);
+  function setValue(key: string, value: string) {
+    setForm((current: AnyRow) => {
+      const next = { ...current, [key]: value };
+      if (key === "contributionType" && value === "complimentary") {
+        next.payeePercent = 0;
+        next.mandalPercent = 100;
+        next.volunteerId = currentVolunteerId || "";
+      }
+      if (key === "contributionType" && value === "payee_full") {
+        next.payeePercent = 100;
+        next.mandalPercent = 0;
+      }
+      if (key === "payeePercent") next.mandalPercent = Math.max(0, 100 - Number(value || 0));
+      if (["adults", "memberContributionRate", "contributionType", "payeePercent"].includes(key)) {
+        next.amountReceived = calculatedReceivedAmount(next);
+      }
+      return next;
+    });
+  }
+  async function submit(eventSubmit: FormEvent) {
+    eventSubmit.preventDefault();
+    setError("");
+    if (form.paymentMethod && !form.volunteerId) {
+      setError("Collected By is required when payment method is selected.");
+      return;
+    }
+    try {
+      await api(`/dinner/events/${rowId(event)}/registrations`, { method: "POST", body: JSON.stringify(form) });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save registration");
+    }
+  }
+  async function markNotPaid() {
+    if (!registration || !["Paid", "Partial"].includes(registration.paymentStatus)) return;
+    const name = `${house.houseNumber || "this house"}${house.ownerName ? ` - ${house.ownerName}` : ""}`;
+    if (!confirm(`Mark ${name} as not paid? This will clear the received amount and remove the QR coupon.`)) return;
+    setError("");
+    try {
+      await api(`/dinner/registrations/${rowId(registration)}/payment/unpaid`, { method: "POST" });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to mark not paid");
+    }
+  }
+  async function revertCheckIn() {
+    if (!registration || !hasCheckIn) return;
+    const name = `${house.houseNumber || "this house"}${house.ownerName ? ` - ${house.ownerName}` : ""}`;
+    if (!confirm(`Revert check-in for ${name}? This will clear successful gate entry counts for this dinner event.`)) return;
+    setError("");
+    try {
+      await api(`/dinner/registrations/${rowId(registration)}/checkins`, { method: "DELETE" });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to revert check-in");
+    }
+  }
+  return (
+    <Modal title="Collect Payment & Attendee Details" onClose={onClose} wide>
+      <form className="space-y-4" onSubmit={submit}>
+        <div className="rounded-md border bg-muted/40 p-3 text-sm">
+          <p><strong>{house.houseNumber}</strong> — {house.ownerName}</p>
+          <p className="text-muted-foreground">Mobile: {house.phone || "-"} • Existing registered members: {form.existingMemberCount || "-"}</p>
+          {registration ? <p className="mt-1 text-muted-foreground">Checked in: Adults {checkedInAdults}, Kids {checkedInChildren}, Plates {checkedInPlates}</p> : null}
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Existing Registered Member Count"><ResponsiveNumberInput value={form.existingMemberCount} onChange={(value) => setValue("existingMemberCount", value)} /></Field>
+          <Field label="Adults / Age 7+"><ResponsiveNumberInput value={form.adults} onChange={(value) => setValue("adults", value)} /></Field>
+          <Field label="Children Below 7"><ResponsiveNumberInput value={form.childrenBelow7} onChange={(value) => setValue("childrenBelow7", value)} /></Field>
+          <div className="rounded-md border p-3 text-sm">Total attending: <strong>{adults + children}</strong><br />Plate entitlement: <strong>{adults}</strong><br />Total amount: <strong className="text-destructive">{money(payeeAmount)}</strong><p className="mt-2 text-muted-foreground">Children below 7 are complimentary and are not allotted separate plates.</p></div>
+          <Field label="Contribution Type"><SelectBox value={form.contributionType} onChange={(event) => setValue("contributionType", event.target.value)}>{contributionTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</SelectBox></Field>
+          <Field label="Member Contribution Rate"><Input type="number" value={form.memberContributionRate} onChange={(event) => setValue("memberContributionRate", event.target.value)} /></Field>
+          {form.contributionType === "split" ? <Field label="Payee %"><Input type="number" value={form.payeePercent} onChange={(event) => setValue("payeePercent", event.target.value)} /></Field> : null}
+          {form.contributionType === "split" ? <Field label="Yuvak Mandal %"><Input type="number" value={form.mandalPercent} onChange={(event) => setValue("mandalPercent", event.target.value)} /></Field> : null}
+          <Field label="Amount Received"><Input type="number" disabled={form.contributionType === "complimentary"} value={form.amountReceived} onChange={(event) => setValue("amountReceived", event.target.value)} /></Field>
+          <Field label="Payment Method"><SelectBox disabled={form.contributionType === "complimentary"} value={form.paymentMethod} onChange={(event) => setValue("paymentMethod", event.target.value)}><option value="">Select</option><option>Cash</option><option>GPay</option></SelectBox></Field>
+          <Field label="Collected By"><SearchableSelect disabled={collectorLocked} value={String(form.volunteerId || "")} onChange={(value) => setValue("volunteerId", value)} options={volunteerOptions} placeholder="Search volunteer" /></Field>
+          <Field label="Transaction Reference"><Input value={form.transactionReference} onChange={(event) => setValue("transactionReference", event.target.value)} /></Field>
+          <Field label="Notes"><Input value={form.notes} onChange={(event) => setValue("notes", event.target.value)} /></Field>
+        </div>
+        <div className="rounded-md bg-muted p-3 text-sm">Payee amount: <strong>{money(payeeAmount)}</strong>{form.contributionType !== "payee_full" ? <> • Yuvak Mandal share: <strong>{money(mandalAmount)}</strong></> : null} • Balance due: <strong>{money(balance)}</strong></div>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <div className="grid gap-2 sm:flex sm:flex-wrap">
+          <Button type="submit">Save Registration</Button>
+          {registration && ["Paid", "Partial"].includes(registration.paymentStatus) ? <Button type="button" variant="outline" onClick={markNotPaid}>Mark Not Paid</Button> : null}
+          {hasCheckIn ? <Button type="button" variant="outline" onClick={revertCheckIn}>Revert Check-in</Button> : null}
+          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function DinnerCouponPanel({ registrations, onPreview, onRefresh }: { registrations: AnyRow[]; onPreview: (row: AnyRow) => void; onRefresh: () => void }) {
+  async function generate(row: AnyRow) {
+    await api(`/dinner/registrations/${rowId(row)}/coupon`, { method: "POST" });
+    await onRefresh();
+  }
+  async function send(row: AnyRow) {
+    await api(`/dinner/registrations/${rowId(row)}/coupon/send`, { method: "POST", body: JSON.stringify({ deliveryChannel: "WhatsApp", sentTo: row.houseId?.phone || row.house?.phone }) });
+    await onRefresh();
+  }
+  return (
+    <Card>
+      <CardHeader className="border-b"><CardTitle>Coupon Management</CardTitle></CardHeader>
+      <CardContent className="pt-4">
+        <DataTable
+          rows={registrations}
+          columns={["houseId", "adults", "childrenBelow7", "plateEntitlement", "paymentStatus", "couponStatus", "deliveryStatus"]}
+          renderCell={(row, column) => ["paymentStatus", "couponStatus", "deliveryStatus"].includes(column) ? <StatusBadge status={row[column]} /> : undefined}
+          actions={(row) => (
+            <div className="flex gap-1">
+              <Button variant="outline" size="icon" title="Generate QR" disabled={!["Paid", "Complimentary"].includes(row.paymentStatus)} onClick={() => generate(row)}><QrCode className="h-4 w-4" /></Button>
+              <Button variant="outline" size="icon" title="Preview" onClick={() => onPreview(row)}><Search className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" title="Mark Sent" disabled={row.couponStatus === "Not Generated"} onClick={() => send(row)}><Send className="h-4 w-4" /></Button>
+            </div>
+          )}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function DinnerCouponPreview({ registration, onClose }: { registration: AnyRow; onClose: () => void }) {
+  const qrText = registration.coupon?.qrPayload || registration.coupon?.token || "Generate coupon to create secure QR token";
+  const [qrImage, setQrImage] = useState("");
+  const couponRef = useRef<HTMLDivElement | null>(null);
+  const couponExportRef = useRef<HTMLDivElement | null>(null);
+  const event = registration.eventId || registration.event || {};
+  const house = registration.houseId || registration.house || {};
+  const eventName = event.name || "Dinner Event";
+  const eventDate = event.eventDate || event.date;
+  const eventTime = event.eventTime || "";
+  const venue = event.venue || "Venue pending";
+  const adults = Number(registration.adults || 0);
+  const children = Number(registration.childrenBelow7 || 0);
+  const totalAttending = Number(registration.totalAttending || adults + children);
+  const plates = Number(registration.plateEntitlement || adults);
+  const paymentStatus = registration.paymentStatus || "Paid";
+  const defaultCouponNote = "Children below 7 are complimentary and do not receive separate plates.";
+  const couponImportantNote = String(event.couponImportantNote || defaultCouponNote).trim();
+  const showCouponNote = event.showCouponNote !== false && Boolean(couponImportantNote);
+  const couponCode = useMemo(() => {
+    if (registration.coupon?.couponCode) return registration.coupon.couponCode;
+    const initials = eventName.split(/\s+/).map((part: string) => part[0]).join("").slice(0, 4).toUpperCase() || "DIN";
+    const houseCode = String(house.houseNumber || "HOUSE").replace(/[^a-z0-9]/gi, "").toUpperCase();
+    const dateCode = String(eventDate || "").replace(/\D/g, "").slice(2, 8) || "DATE";
+    const tokenCode = String(qrText || "").replace(/[^a-z0-9]/gi, "").slice(-4).toUpperCase() || "QR";
+    return `${initials}-${houseCode}-${dateCode}-${tokenCode}`;
+  }, [eventName, eventDate, house.houseNumber, qrText]);
+
+  useEffect(() => {
+    QRCode.toDataURL(qrText, { width: 320, margin: 1, errorCorrectionLevel: "H", color: { dark: "#000000", light: "#ffffff" } })
+      .then(setQrImage)
+      .catch(() => setQrImage(""));
+  }, [qrText]);
+
+  async function renderCouponBlob() {
+    const couponNode = couponExportRef.current || couponRef.current;
+    if (!couponNode) return null;
+    const canvas = await html2canvas(couponNode, {
+      backgroundColor: "#ffffff",
+      scale: Math.max(2, window.devicePixelRatio || 1),
+      useCORS: true,
+    });
+    return new Promise<Blob | null>((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png", 0.95));
+  }
+
+  function saveBlob(blob: Blob, fileName: string) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function downloadCoupon() {
+    const blob = await renderCouponBlob();
+    if (!blob) return;
+    saveBlob(blob, `${couponCode}.png`);
+  }
+
+  async function shareWhatsApp() {
+    const phone = String(house.phone || "").replace(/\D/g, "");
+    const whatsAppPhone = phone ? phone.startsWith("91") ? phone : `91${phone}` : "";
+    const text = [
+      `${eventName} dinner coupon`,
+      `House: ${house.houseNumber || "-"}`,
+      `Name: ${house.ownerName || "-"}`,
+      `Adults / 7+: ${adults}`,
+      `Kids < 7: ${children}`,
+      `Plates: ${plates}`,
+      `Coupon Code: ${couponCode}`,
+      "",
+      "Show this QR coupon at the dinner entry gate for check-in.",
+      ...(showCouponNote ? ["", couponImportantNote] : []),
+      qrText,
+    ].join("\n");
+    const blob = await renderCouponBlob();
+    const fileName = `${couponCode}.png`;
+    if (blob && navigator.share) {
+      const file = new File([blob], fileName, { type: "image/png" });
+      const shareData = {
+        title: `${eventName} Dinner Coupon`,
+        text,
+        files: [file],
+      } as ShareData & { files: File[] };
+      const canShareFile = typeof navigator.canShare !== "function" || navigator.canShare(shareData);
+      if (canShareFile) {
+        try {
+          await navigator.share(shareData);
+          return;
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") return;
+        }
+      }
+    }
+    if (blob) saveBlob(blob, fileName);
+    const params = new URLSearchParams({ text });
+    window.open(`https://wa.me/${whatsAppPhone}?${params.toString()}`, "_blank");
+  }
+
+  return (
+    <Modal title="Coupon Preview" onClose={onClose} wide>
+      <div className="space-y-3">
+        <div ref={couponRef} className="mx-auto max-w-[760px] overflow-hidden rounded-md border border-emerald-100 bg-white text-slate-950 shadow-sm">
+          <div className="border-l-4 border-emerald-600 p-3">
+            <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-start gap-3 border-b pb-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                <Utensils className="h-6 w-6" />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <h3 className="break-words text-xl font-bold leading-tight">{eventName}</h3>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                  <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {formatDateDDMMYYYY(eventDate)}</span>
+                  {eventTime ? <span className="inline-flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" /> {eventTime} Onwards</span> : null}
+                </div>
+                <div className="inline-flex max-w-full items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" />
+                  <span className="min-w-0 truncate">{venue}</span>
+                </div>
+              </div>
+              <span className="inline-flex w-max items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-bold uppercase text-emerald-700">
+                <CheckCircle2 className="h-3.5 w-3.5" /> {paymentStatus}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-[40px_minmax(0,1fr)] items-center gap-3 py-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-700">
+                <Home className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-lg font-bold leading-tight">House: {house.houseNumber || "-"}</p>
+                <p className="text-sm leading-tight text-slate-600">{house.ownerName || "-"}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-md border border-blue-100 bg-blue-50/40 p-2">
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase text-blue-700">
+                  <UsersRound className="h-4 w-4" /> Attendee Details
+                </div>
+                <div className="overflow-hidden rounded-md border bg-white">
+                  <CouponCountRow icon={<UsersRound className="h-4 w-4" />} iconClassName="bg-blue-50 text-blue-700" label="Adults / 7+" subLabel="Eligible for plates" value={adults} valueClassName="text-blue-700" />
+                  <CouponCountRow icon={<Baby className="h-4 w-4" />} iconClassName="bg-amber-50 text-amber-700" label="Children < 7" subLabel="Complimentary" value={children} valueClassName="text-amber-600" />
+                  <CouponCountRow icon={<UsersRound className="h-4 w-4" />} iconClassName="bg-emerald-50 text-emerald-700" label="Total Attending" subLabel="Adults + Children" value={totalAttending} valueClassName="text-emerald-700" last />
+                </div>
+              </div>
+              <div className="rounded-md border border-emerald-100 bg-emerald-50/40 p-2">
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase text-emerald-700">
+                  <Utensils className="h-4 w-4" /> Plates
+                </div>
+                <div className="grid h-[158px] place-items-center rounded-md border bg-white p-3 text-center">
+                  <div>
+                    <div className="text-5xl font-bold leading-none text-emerald-700">{plates}</div>
+                    <div className="mt-1 text-lg font-bold uppercase text-emerald-700">Plates</div>
+                    <div className="mt-1 text-xs text-slate-500">(For Adults / 7+)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-[150px_minmax(0,1fr)] items-center gap-3 rounded-md border p-3">
+              <div className="grid place-items-center">
+                <CouponQrWithLogo qrImage={qrImage} sizeClassName="h-36 w-36" badgeClassName="h-7 w-7" logoClassName="max-h-5 max-w-5" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-base font-bold">Coupon Code</p>
+                <p className="inline-block max-w-full break-all rounded-md bg-emerald-50 px-3 py-1.5 font-mono text-base font-bold text-emerald-800">{couponCode}</p>
+                <div className="border-t border-dashed" />
+                <p className="text-xs text-slate-600">Show this QR at the dinner entry gate for check-in.</p>
+              </div>
+            </div>
+
+            {showCouponNote ? <div className="mt-3 flex gap-2 rounded-md border border-amber-100 bg-amber-50 p-2.5 text-amber-950">
+              <Info className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="text-sm font-bold leading-tight">Important Note</p>
+                <p className="text-xs leading-snug">{couponImportantNote}</p>
+              </div>
+            </div> : null}
+          </div>
+        </div>
+        <div className="fixed left-[-10000px] top-0 w-[720px] bg-white">
+          <div ref={couponExportRef} className="w-[720px] rounded border border-slate-900 bg-white p-7 text-black">
+            <div className="border-b border-slate-900 pb-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-3xl font-bold leading-tight">{eventName}</h2>
+                  <p className="mt-3 text-base leading-tight">{formatDateDDMMYYYY(eventDate)} <span className="px-2">|</span> {eventTime ? `${eventTime} Onwards` : "Time pending"}</p>
+                  <p className="mt-2 text-base leading-tight">Venue: {venue}</p>
+                </div>
+                <div className="flex h-7 items-center rounded border border-slate-900 px-4 text-sm font-bold uppercase leading-none">{paymentStatus}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-[minmax(0,1fr)_180px] gap-8 py-5">
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm uppercase leading-tight">House</p>
+                  <p className="mt-2 text-3xl font-bold leading-none">{house.houseNumber || "-"}</p>
+                  <p className="mt-2 text-base leading-tight">{house.ownerName || "-"}</p>
+                </div>
+                <div>
+                  <p className="mb-2 text-sm font-bold uppercase leading-tight">Attendee Details</p>
+                  <div className="grid grid-cols-3 items-stretch overflow-hidden border border-slate-900 text-center">
+                    <CouponExportStat label="Adults / 7+" value={adults} />
+                    <CouponExportStat label="Children < 7" value={children} />
+                    <CouponExportStat label="Total" value={totalAttending} />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm uppercase leading-tight">Plates</p>
+                  <p className="mt-2 text-3xl font-bold leading-none">{plates} <span className="text-base font-normal">for Adults / 7+</span></p>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <CouponQrWithLogo qrImage={qrImage} sizeClassName="h-40 w-40" badgeClassName="h-8 w-8" logoClassName="max-h-6 max-w-6" />
+                <p className="mt-4 text-sm font-bold uppercase leading-tight">Coupon Code</p>
+                <p className="mt-2 flex min-h-8 items-center justify-center break-all px-2 font-mono text-sm font-bold leading-none">{couponCode}</p>
+              </div>
+            </div>
+
+            <div className="pt-5 text-sm">
+              {showCouponNote ? (
+                <p className="leading-snug"><strong>Important Note:</strong> {couponImportantNote}</p>
+              ) : null}
+              <div className={cn("mt-5 border-t border-slate-900 pt-4 text-center text-xs font-bold italic leading-snug text-slate-600", !showCouponNote && "mt-0")}>Show this QR at the dinner entry gate for check-in.</div>
+              <div className="mt-2 text-center text-xs">Thank you for your cooperation.</div>
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <Button variant="outline" onClick={downloadCoupon}><Download className="h-4 w-4" /> Download</Button>
+          <Button variant="outline" onClick={shareWhatsApp}><WhatsAppIcon /> Share on WhatsApp</Button>
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function CouponCountRow({ icon, iconClassName, label, subLabel, value, valueClassName, last }: { icon: React.ReactNode; iconClassName: string; label: string; subLabel: string; value: number; valueClassName: string; last?: boolean }) {
+  return (
+    <div className={cn("grid grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-2 px-2 py-2", !last && "border-b")}>
+      <div className={cn("flex h-8 w-8 items-center justify-center rounded-full", iconClassName)}>{icon}</div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium leading-tight">{label}</p>
+        <p className="truncate text-[11px] leading-tight text-slate-500">{subLabel}</p>
+      </div>
+      <div className={cn("text-right text-2xl font-bold leading-none", valueClassName)}>{value}</div>
+    </div>
+  );
+}
+
+function CouponQrWithLogo({ qrImage, sizeClassName, badgeClassName, logoClassName }: { qrImage: string; sizeClassName: string; badgeClassName: string; logoClassName: string }) {
+  return (
+    <div className={cn("relative mx-auto grid place-items-center", sizeClassName)}>
+      {qrImage ? <img alt="Dinner coupon QR" className="h-full w-full object-contain" src={qrImage} /> : <QrCode className="h-4/5 w-4/5" />}
+      <div className={cn("absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-md bg-white p-1 shadow-sm", badgeClassName)}>
+        <img alt="Yuvak Mandal logo" className={cn("object-contain", logoClassName)} src={mandalLogo} />
+      </div>
+    </div>
+  );
+}
+
+function DinnerPlatePanel({ event, metrics, onRefresh }: { event: AnyRow; metrics: AnyRow; onRefresh: () => void }) {
+  const [finalCount, setFinalCount] = useState(event.finalPlateCount || metrics.platesEntitled || 0);
+  const estimated = event.catererPricingType === "fixed" ? Number(event.fixedContractAmount || 0) : Number(finalCount || 0) * Number(event.catererRatePerPlate || 0);
+  async function save(shared = false, confirmed = false) {
+    await api(`/dinner/events/${rowId(event)}/plate-confirmation`, { method: "POST", body: JSON.stringify({ finalPlateCount: finalCount, shared, confirmed }) });
+    await onRefresh();
+  }
+  return (
+    <Card>
+      <CardHeader className="border-b"><CardTitle>Final Plate Confirmation to Caterer</CardTitle></CardHeader>
+      <CardContent className="space-y-3 pt-4">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <DinnerMetric label="Registered Houses" value={metrics.registeredHouses || 0} />
+          <DinnerMetric label="Adults / 7+" value={metrics.adultsRegistered || 0} />
+          <DinnerMetric label="Children Below 7" value={metrics.childrenBelow7 || 0} />
+          <DinnerMetric label="Total Attending" value={metrics.totalAttending || 0} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Final Plate Commitment"><Input type="number" value={finalCount} onChange={(event) => setFinalCount(Number(event.target.value || 0))} /></Field>
+          <div className="rounded-md border p-3 text-sm">Caterer rate: <strong>{event.catererPricingType === "fixed" ? money(event.fixedContractAmount) : `${money(event.catererRatePerPlate)} / plate`}</strong><br />Estimated caterer amount: <strong>{money(estimated)}</strong></div>
+        </div>
+        <div className="grid gap-2 sm:flex sm:flex-wrap"><Button onClick={() => save(true, false)}><Send className="h-4 w-4" /> Share Final Plate Count</Button><Button variant="outline" onClick={() => save(true, true)}><CheckCircle2 className="h-4 w-4" /> Mark Caterer Confirmed</Button></div>
+        <p className="text-sm text-muted-foreground">Final Plate Commitment = Total Eligible Adults / Age 7+. Children below 7 are not included in plate commitment.</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DinnerScannerPanel({ event, onOpen, onRefresh }: { event: AnyRow; onOpen: (row: AnyRow) => void; onRefresh: () => void }) {
+  const [token, setToken] = useState("");
+  const [search, setSearch] = useState("");
+  const [matches, setMatches] = useState<AnyRow[]>([]);
+  const [error, setError] = useState("");
+  const [cameraRunning, setCameraRunning] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState("");
+  const scannerRef = useRef<any>(null);
+  const readerId = useMemo(() => `dinner-qr-reader-${rowId(event) || "event"}`, [event]);
+
+  async function validateToken(value = token) {
+    const nextToken = value.trim();
+    if (!nextToken) return;
+    setError("");
+    setToken(nextToken);
+    try {
+      const res = await api<{ data: AnyRow }>(`/dinner/coupons/validate${toQuery({ token: nextToken })}`);
+      await stopCamera();
+      onOpen({ ...res.data, entryMethod: "QR" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to validate QR");
+    }
+  }
+
+  async function stopCamera() {
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+    setCameraRunning(false);
+    setCameraStatus("");
+    if (!scanner) return;
+    try {
+      if (scanner.getState?.() === 2) await scanner.stop();
+      scanner.clear?.();
+    } catch {
+      scanner.clear?.();
+    }
+  }
+
+  async function startCamera() {
+    setError("");
+    setCameraStatus("Starting camera...");
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      await stopCamera();
+      const scanner = new Html5Qrcode(readerId);
+      scannerRef.current = scanner;
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1 },
+        (decodedText: string) => {
+          setCameraStatus("QR found. Validating...");
+          validateToken(decodedText);
+        },
+        () => undefined
+      );
+      setCameraRunning(true);
+      setCameraStatus("Camera ready. Point it at the dinner coupon QR.");
+    } catch (err) {
+      setCameraRunning(false);
+      setCameraStatus("");
+      setError(err instanceof Error ? err.message : "Unable to start camera. Check browser camera permission.");
+    }
+  }
+
+  useEffect(() => () => {
+    stopCamera();
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!search.trim()) {
+        setMatches([]);
+        return;
+      }
+      api<{ data: AnyRow[] }>(`/dinner/events/${rowId(event)}/registrations${toQuery({ search })}`).then((res) => setMatches(res.data || [])).catch(() => setMatches([]));
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [event, search]);
+  return (
+    <Card>
+      <CardHeader className="border-b"><CardTitle>Gate Scanner</CardTitle></CardHeader>
+      <CardContent className="space-y-4 pt-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-md border p-3">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold"><ScanLine className="h-5 w-5" /> Scan QR</h3>
+            <div className="overflow-hidden rounded-md border bg-black">
+              <div id={readerId} className="min-h-64 w-full [&_video]:min-h-64 [&_video]:w-full [&_video]:object-cover" />
+            </div>
+            {cameraStatus ? <p className="mt-2 text-sm text-muted-foreground">{cameraStatus}</p> : null}
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <Button type="button" onClick={startCamera} disabled={cameraRunning}><ScanLine className="h-4 w-4" /> Start Camera</Button>
+              <Button type="button" variant="outline" onClick={stopCamera} disabled={!cameraRunning}>Stop</Button>
+            </div>
+            <div className="my-3 border-t" />
+            <Input className="min-h-12 text-base" placeholder="Paste QR token or coupon code" value={token} onChange={(event) => setToken(event.target.value)} />
+            <Button className="mt-3 w-full" onClick={() => validateToken()} disabled={!token.trim()}><QrCode className="h-4 w-4" /> Validate QR</Button>
+          </div>
+          <div className="rounded-md border p-3">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold"><Search className="h-5 w-5" /> Search House</h3>
+            <Input className="min-h-12 text-base" placeholder="House number, name, or mobile" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <div className="mt-3 max-h-56 overflow-auto rounded-md border">
+              {matches.length ? matches.map((row) => <button className="block w-full border-b p-3 text-left last:border-b-0 hover:bg-muted" type="button" key={rowId(row)} onClick={() => onOpen({ ...row, entryMethod: "House Search" })}><strong>{row.houseId?.houseNumber}</strong> <span className="text-muted-foreground">{row.houseId?.ownerName}</span></button>) : <div className="p-3 text-sm text-muted-foreground">No matching house registration found.</div>}
+            </div>
+          </div>
+        </div>
+        {error ? <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
+        <Button variant="outline" onClick={onRefresh}><RefreshCcw className="h-4 w-4" /> Refresh Dashboard</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CheckInMiniStat({ icon, label, value, className }: { icon: React.ReactNode; label: string; value: number; className?: string }) {
+  return (
+    <div className="min-w-[118px] flex-1 rounded-md bg-background/60 p-2 text-center">
+      <div className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground sm:text-sm">
+        <span className={cn("shrink-0", className)}>{icon}</span>
+        <span className="truncate">{label}</span>
+      </div>
+      <div className="mt-1 text-xl font-bold leading-none sm:text-2xl">{value}</div>
+    </div>
+  );
+}
+
+function CouponExportStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex h-[62px] flex-col items-center justify-center border-r border-slate-900 px-2 py-1 last:border-r-0">
+      <p className="text-sm leading-tight">{label}</p>
+      <p className="mt-0.5 text-[28px] font-bold leading-[1.15]">{value}</p>
+    </div>
+  );
+}
+
+function CheckInStepperCard({ label, subLabel, value, max, icon, tone, onChange }: { label: string; subLabel: string; value: number; max: number; icon: React.ReactNode; tone: "blue" | "amber" | "emerald"; onChange: (value: number) => void }) {
+  const toneClass = {
+    blue: "border-blue-200 bg-blue-50/50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/20 dark:text-blue-200",
+    amber: "border-amber-200 bg-amber-50/50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200",
+    emerald: "border-emerald-200 bg-emerald-50/50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200",
+  }[tone];
+  return (
+    <div className={cn("rounded-md border p-2 sm:p-4", toneClass)}>
+      <div className="mb-2 text-center sm:mb-4">
+        <div className="flex items-center justify-center gap-2 text-sm font-bold text-foreground sm:text-base">
+          <span className={tone === "blue" ? "text-blue-600" : tone === "amber" ? "text-amber-600" : "text-emerald-700"}>{icon}</span>
+          <span>{label}</span>
+        </div>
+        <div className="mt-1 hidden text-xs text-muted-foreground sm:block">{subLabel}</div>
+      </div>
+      <div className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-center gap-2 sm:grid-cols-[56px_minmax(0,1fr)_56px] sm:gap-3">
+        <Button type="button" variant="outline" size="icon" className="h-10 w-10 bg-background/70 sm:h-12 sm:w-12" onClick={() => onChange(Math.max(0, value - 1))}><Minus className="h-5 w-5" /></Button>
+        <div className="text-center text-3xl font-bold leading-none text-foreground sm:text-5xl">{value}</div>
+        <Button type="button" variant="outline" size="icon" className="h-10 w-10 bg-background/70 sm:h-12 sm:w-12" onClick={() => onChange(Math.min(max, value + 1))}><Plus className="h-5 w-5" /></Button>
+      </div>
+      <div className="mt-2 text-center text-xs font-semibold sm:mt-4 sm:text-sm">Remaining: {max}</div>
+    </div>
+  );
+}
+
+function DinnerCheckInModal({ registration, onClose, onSaved }: { registration: AnyRow; onClose: () => void; onSaved: () => void }) {
+  const [adults, setAdults] = useState(Math.min(1, Number(registration.remainingAdults || 0)));
+  const [children, setChildren] = useState(0);
+  const [plates, setPlates] = useState(Math.min(adults, Number(registration.remainingPlates || 0)));
+  const [error, setError] = useState("");
+  const registeredAdults = Number(registration.adults || 0);
+  const registeredChildren = Number(registration.childrenBelow7 || 0);
+  const registeredTotal = Number(registration.totalAttending || registeredAdults + registeredChildren);
+  const plateEntitlement = Number(registration.plateEntitlement || registeredAdults);
+  const checkedAdults = Number(registration.adultsCheckedIn || 0);
+  const checkedChildren = Number(registration.childrenCheckedIn || 0);
+  const checkedPlates = Number(registration.platesUsed || 0);
+  const remainingAdults = Number(registration.remainingAdults || 0);
+  const remainingChildren = Number(registration.remainingChildren || 0);
+  const remainingPlates = Number(registration.remainingPlates || 0);
+  const afterAdults = checkedAdults + adults;
+  const afterChildren = checkedChildren + children;
+  const afterPlates = checkedPlates + plates;
+  useEffect(() => {
+    setPlates(Math.min(adults, remainingPlates));
+  }, [adults, remainingPlates]);
+  function setAdultEntry(value: number) {
+    setAdults(Math.min(value, remainingAdults, remainingPlates));
+  }
+  function setPlateEntry(value: number) {
+    setAdults(Math.min(value, remainingAdults, remainingPlates));
+  }
+  async function submit() {
+    setError("");
+    try {
+      await api(`/dinner/registrations/${rowId(registration)}/checkins`, { method: "POST", body: JSON.stringify({ adultsEntered: adults, childrenEntered: children, platesConsumed: plates, entryMethod: registration.entryMethod || "House Search" }) });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Check-in blocked");
+    }
+  }
+  return (
+    <Modal title="Gate Check-in" onClose={onClose} wide>
+      <div className="space-y-2 sm:space-y-4">
+        <div className="rounded-md border border-emerald-100 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20 sm:p-4">
+          <div className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[76px_minmax(0,1fr)_auto]">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-100 sm:h-16 sm:w-16">
+              <Home className="h-7 w-7 sm:h-8 sm:w-8" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="break-words text-2xl font-bold leading-tight sm:text-3xl">{registration.houseId?.houseNumber || "-"}</h3>
+                <StatusBadge status={registration.paymentStatus || "Pending"} />
+                <StatusBadge status="Registered" />
+              </div>
+              <p className="mt-1 break-words text-base text-foreground sm:text-lg">{registration.houseId?.ownerName || "-"}</p>
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2 overflow-x-auto border-t pt-4 lg:grid lg:grid-cols-4 lg:overflow-visible">
+            <CheckInMiniStat icon={<UsersRound className="h-5 w-5" />} className="text-blue-600" label="Adults / 7+" value={registeredAdults} />
+            <CheckInMiniStat icon={<Baby className="h-5 w-5" />} className="text-amber-600" label="Children < 7" value={registeredChildren} />
+            <CheckInMiniStat icon={<UsersRound className="h-5 w-5" />} className="text-emerald-600" label="Total Attending" value={registeredTotal} />
+            <CheckInMiniStat icon={<Utensils className="h-5 w-5" />} className="text-emerald-700" label="Plate Entitlement" value={plateEntitlement} />
+          </div>
+        </div>
+
+        <div className="grid gap-2 rounded-md border bg-muted/30 p-2 sm:p-4 md:grid-cols-2 md:items-center">
+          <div className="min-w-0">
+            <h3 className="mb-2 text-center text-base font-bold text-foreground">Already Checked-in</h3>
+            <div className="flex justify-center gap-3 overflow-x-auto whitespace-nowrap text-sm">
+              <span className="inline-flex items-center gap-1"><UsersRound className="h-4 w-4 text-blue-600" /><strong className="text-blue-600">{checkedAdults}</strong> Adults</span>
+              <span className="inline-flex items-center gap-1"><Baby className="h-4 w-4 text-amber-600" /><strong className="text-amber-600">{checkedChildren}</strong> Children</span>
+              <span className="inline-flex items-center gap-1"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><strong className="text-emerald-700">{checkedPlates}</strong> Plates Used</span>
+            </div>
+          </div>
+          <div className="overflow-x-auto rounded-md bg-emerald-50 p-2 text-center text-sm font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100 sm:p-3">
+            <div className="mb-1 text-base font-bold text-foreground">Remaining</div>
+            <div className="whitespace-nowrap">{remainingAdults} Adults <span className="px-1">-</span> {remainingChildren} Children <span className="px-1">-</span> {remainingPlates} Plates</div>
+          </div>
+        </div>
+
+        {registration.paymentStatus !== "Paid" && registration.paymentStatus !== "Complimentary" ? <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">Payment Pending. Entry Restricted. Amount due: {money(registration.balanceDue)}</div> : null}
+
+        <div className="rounded-md border p-2 sm:p-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 sm:mb-4">
+            <h3 className="flex items-center gap-2 text-base font-bold sm:text-xl"><LogIn className="h-5 w-5 text-emerald-600" /> Who is entering now?</h3>
+            <span className="hidden items-center gap-1 text-sm text-primary sm:inline-flex"><Info className="h-4 w-4" /> Check-in</span>
+          </div>
+          <div className="grid gap-2 lg:grid-cols-3">
+            <CheckInStepperCard label="Adults / 7+" subLabel="Eligible for plates" value={adults} max={remainingAdults} icon={<UsersRound className="h-6 w-6" />} tone="blue" onChange={setAdultEntry} />
+            <CheckInStepperCard label="Children < 7" subLabel="Complimentary" value={children} max={remainingChildren} icon={<Baby className="h-6 w-6" />} tone="amber" onChange={(value) => setChildren(Math.min(value, remainingChildren))} />
+            <CheckInStepperCard label="Plates to consume" subLabel="For Adults / 7+" value={plates} max={remainingPlates} icon={<Utensils className="h-6 w-6" />} tone="emerald" onChange={setPlateEntry} />
+          </div>
+          <div className="mt-2 hidden gap-3 rounded-md border border-amber-100 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100 sm:flex">
+            <Info className="mt-0.5 h-5 w-5 shrink-0" />
+            <p>Children below 7 are complimentary and do not receive separate plates.</p>
+          </div>
+        </div>
+        {error ? <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
+        <div className="grid gap-2">
+          <Button className="min-h-11 bg-emerald-600 text-base hover:bg-emerald-700 sm:min-h-12" onClick={submit}><CheckCircle2 className="h-5 w-5" /> Check In</Button>
+          <Button className="min-h-10 sm:min-h-11" variant="outline" onClick={onClose}>Cancel</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function DinnerCollectionPanel({ summary, registrations, onRefresh }: { summary: any; registrations: AnyRow[]; onRefresh: () => void | Promise<void> }) {
+  const fallback = useMemo(() => {
+    const rowsByVolunteer = new Map<string, AnyRow>();
+    registrations.forEach((row) => {
+      const amount = Number(row.amountReceived || 0);
+      if (amount <= 0) return;
+      const volunteer = row.volunteerId || row.volunteer || {};
+      const key = rowId(volunteer) || "unassigned";
+      const current = rowsByVolunteer.get(key) || {
+        volunteerName: volunteer.name || "Unassigned",
+        houseCount: 0,
+        cashAmount: 0,
+        gpayAmount: 0,
+        totalAmount: 0,
+        handoverStatus: "Pending",
+      };
+      if (row.paymentMethod === "Cash") current.cashAmount += amount;
+      else current.gpayAmount += amount;
+      current.totalAmount += amount;
+      current.houseCount += 1;
+      rowsByVolunteer.set(key, current);
+    });
+    const rows = Array.from(rowsByVolunteer.values()).sort((a, b) => Number(a.handoverStatus === "Collected") - Number(b.handoverStatus === "Collected") || String(a.volunteerName).localeCompare(String(b.volunteerName)));
+    return {
+      rows,
+      totals: {
+        cashAmount: rows.reduce((sum, row) => sum + Number(row.cashAmount || 0), 0),
+        gpayAmount: rows.reduce((sum, row) => sum + Number(row.gpayAmount || 0), 0),
+        totalAmount: rows.reduce((sum, row) => sum + Number(row.totalAmount || 0), 0),
+        houseCount: rows.reduce((sum, row) => sum + Number(row.houseCount || 0), 0),
+      },
+    };
+  }, [registrations]);
+  const data = summary || fallback;
+  const totals = data.totals || fallback.totals;
+  const rows = [...(data.rows || fallback.rows)].sort((a, b) => Number(a.handoverStatus === "Collected") - Number(b.handoverStatus === "Collected") || String(a.volunteerName).localeCompare(String(b.volunteerName)));
+  async function updateHandover(row: AnyRow, status: "Pending" | "Collected") {
+    const eventId = rowId(data.event || summary?.event || {});
+    const volunteerId = rowId(row.volunteerId || row.volunteer || {});
+    if (!eventId || !volunteerId) return;
+    await api(`/dinner/events/${eventId}/collections/${volunteerId}/handover`, { method: "POST", body: JSON.stringify({ status }) });
+    await onRefresh();
+  }
+  return (
+    <Card>
+      <CardHeader className="grid gap-3 border-b sm:flex sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle>Volunteer Collections</CardTitle>
+        <Button className="w-full sm:w-auto" variant="outline" onClick={onRefresh}><RefreshCcw className="h-4 w-4" /> Refresh</Button>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-4">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <DinnerMetric compact icon={Home} label="Houses" value={totals.houseCount || 0} />
+          <DinnerMetric compact icon={WalletCards} label="Cash" value={money(totals.cashAmount)} />
+          <DinnerMetric compact icon={WalletCards} label="GPay" value={money(totals.gpayAmount)} />
+          <DinnerMetric compact icon={ReceiptIndianRupee} label="Total" value={money(totals.totalAmount)} />
+        </div>
+        <DataTable
+          rows={rows}
+          columns={["volunteerName", "houseCount", "totalAmount", "cashAmount", "gpayAmount", "handoverStatus"]}
+          moneyColumns={["cashAmount", "gpayAmount", "totalAmount"]}
+          rowClassName={(row) => row.handoverStatus !== "Collected" ? "bg-amber-50/70 dark:bg-amber-950/20" : ""}
+          actionColumnClassName="max-md:w-12 max-md:min-w-12 md:w-36 md:min-w-36"
+          renderHeader={(column) => ({
+            volunteerName: "Volunteer",
+            houseCount: "Houses",
+            totalAmount: "Total",
+            cashAmount: "Cash",
+            gpayAmount: "GPay",
+            handoverStatus: "Status",
+          }[column])}
+          renderCell={(row, column) => {
+            if (column === "volunteerName") return <span className="font-bold">{row.volunteerName || "Unassigned"}</span>;
+            if (column === "totalAmount") return <span className="font-bold">{money(row.totalAmount)}</span>;
+            if (column === "handoverStatus") return <StatusBadge status={row.handoverStatus === "Collected" ? "Collected" : "Pending"} />;
+            return undefined;
+          }}
+          actions={(row) => {
+            const volunteerId = rowId(row.volunteerId || row.volunteer || {});
+            return row.handoverStatus === "Collected" ? (
+              <Button className="h-7 min-h-7 w-7 p-0 md:h-8 md:w-auto md:px-3" variant="outline" disabled={!volunteerId} title="Undo collection received" onClick={() => updateHandover(row, "Pending")}><RefreshCcw className="h-3.5 w-3.5" /><span className="hidden md:inline">Undo</span></Button>
+            ) : (
+              <Button className="h-7 min-h-7 w-7 p-0 md:h-8 md:w-auto md:px-3" disabled={!volunteerId} title="Mark collection received" onClick={() => updateHandover(row, "Collected")}><CheckCircle2 className="h-3.5 w-3.5" /><span className="hidden md:inline">Mark Received</span></Button>
+            );
+          }}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function DinnerReportPanel({ report }: { report: any }) {
+  const metrics = report?.metrics || {};
+  const rows = report?.rows || [];
+  return (
+    <Card>
+      <CardHeader className="border-b"><CardTitle>Event Report</CardTitle></CardHeader>
+      <CardContent className="space-y-3 pt-4">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {["registeredHouses", "couponsGenerated", "adultsRegistered", "childrenBelow7", "platesEntitled", "platesUsed", "payeeCollection", "yuvakMandalContribution", "restrictedAttempts", "houseSearchCheckins"].map((key) => <DinnerMetric key={key} label={label(key)} value={key.toLowerCase().includes("collection") || key.toLowerCase().includes("contribution") ? money(metrics[key]) : metrics[key] || 0} />)}
+        </div>
+        <p className="rounded-md bg-muted p-3 text-sm">Children below 7 are included in attendance counts but are not counted as separate plates.</p>
+        <DataTable rows={rows} columns={["houseId", "adults", "childrenBelow7", "totalAttending", "plateEntitlement", "adultsCheckedIn", "childrenCheckedIn", "platesUsed", "contributionType", "payeeAmount", "mandalAmount", "couponStatus", "paymentStatus"]} moneyColumns={["payeeAmount", "mandalAmount"]} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function DinnerSettlementPanel({ event, settlement, setSettlement, onMarkPaid, onMarkUnpaid }: { event: AnyRow; settlement: AnyRow | null; setSettlement: (row: AnyRow) => void; onMarkPaid: () => void; onMarkUnpaid: () => void }) {
+  const [adjustment, setAdjustment] = useState<AnyRow>({ adjustmentType: "Other", description: "", amount: "", direction: "increase" });
+  async function addAdjustment(eventSubmit: FormEvent) {
+    eventSubmit.preventDefault();
+    const adjustmentId = rowId(adjustment);
+    const res = await api<{ data: AnyRow }>(adjustmentId ? `/dinner/events/${rowId(event)}/settlement/adjustments/${adjustmentId}` : `/dinner/events/${rowId(event)}/settlement/adjustments`, { method: adjustmentId ? "PUT" : "POST", body: JSON.stringify(adjustment) });
+    setSettlement(res.data);
+    setAdjustment({ adjustmentType: "Other", description: "", amount: "", direction: "increase" });
+  }
+  function editAdjustment(row: AnyRow) {
+    setAdjustment({
+      ...row,
+      adjustmentType: row.adjustmentType || "Other",
+      description: row.description || "",
+      amount: row.amount || "",
+      direction: row.direction || "increase",
+    });
+  }
+  async function download() {
+    const blob = await apiBlob(`/dinner/events/${rowId(event)}/settlement/download`);
+    downloadBlob(blob, `dinner_settlement_${rowId(event)}.pdf`);
+  }
+  if (!settlement) return <Card><CardContent className="p-4 text-sm text-muted-foreground">Loading settlement...</CardContent></Card>;
+  const adjustmentTotal = (settlement.adjustments || []).reduce((sum: number, row: AnyRow) => sum + (Number(row.amount || 0) * (row.direction === "deduction" ? -1 : 1)), 0);
+  return (
+    <Card>
+      <CardHeader className="border-b"><CardTitle>Caterer Settlement</CardTitle></CardHeader>
+      <CardContent className="space-y-4 pt-4">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <DinnerMetric label="Final Plate Count" value={settlement.finalPlateCount || 0} />
+          <DinnerMetric label="Base Amount" value={money(settlement.baseAmount)} />
+          <DinnerMetric label="Advance Paid" value={money(settlement.advancePaid)} />
+          <DinnerMetric label="Final Payable to Caterer" value={money(settlement.finalPayable)} valueClassName="text-destructive" />
+        </div>
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+          <DinnerMetric label="Coupons Collected" value={money(settlement.collectionTotal)} />
+          <DinnerMetric label="Add to Festival Fund" value={money(settlement.festivalFundSurplus)} valueClassName="text-emerald-700 dark:text-emerald-300" />
+          <DinnerMetric label="Pay from Mandal" value={money(settlement.festivalFundShortfall)} valueClassName="text-destructive" />
+        </div>
+        <div className="rounded-md border p-3 text-sm">
+          <p><strong>{event.catererId?.name || event.caterer?.name || "Caterer"}</strong></p>
+          <p className="text-muted-foreground">Pricing: {event.catererPricingType === "fixed" ? `Fixed ${money(event.fixedContractAmount)}` : `${settlement.finalPlateCount} x ${money(event.catererRatePerPlate)}`}</p>
+          <p className="text-muted-foreground">Base: {money(settlement.baseAmount)} • Adjustments: {money(adjustmentTotal)} • Gross settlement: {money(settlement.grossAmount)} • Advance: {money(settlement.advancePaid)} • Final: <strong className="text-destructive">{money(settlement.finalPayable)}</strong> • Collections: {money(settlement.collectionTotal)} • Status: {settlement.status}</p>
+        </div>
+        <DataTable rows={settlement.adjustments || []} columns={["adjustmentType", "description", "direction", "amount"]} moneyColumns={["amount"]} actionColumnClassName="max-md:w-12 max-md:min-w-12 md:w-20 md:min-w-20" actions={(row) => <Button className="h-7 min-h-7 w-7 p-0" variant="outline" title="Edit adjustment" onClick={() => editAdjustment(row)}><Pencil className="h-3.5 w-3.5" /></Button>} />
+        <form className="grid gap-2 rounded-md border p-3 md:grid-cols-4" onSubmit={addAdjustment}>
+          <Field label="Adjustment Type"><Input value={adjustment.adjustmentType} onChange={(event) => setAdjustment((current: AnyRow) => ({ ...current, adjustmentType: event.target.value }))} /></Field>
+          <Field label="Description"><Input value={adjustment.description} onChange={(event) => setAdjustment((current: AnyRow) => ({ ...current, description: event.target.value }))} /></Field>
+          <Field label="Amount"><Input type="number" value={adjustment.amount} onChange={(event) => setAdjustment((current: AnyRow) => ({ ...current, amount: event.target.value }))} /></Field>
+          <Field label="Increase / Deduction"><SelectBox value={adjustment.direction} onChange={(event) => setAdjustment((current: AnyRow) => ({ ...current, direction: event.target.value }))}><option value="increase">Increase</option><option value="deduction">Deduction</option></SelectBox></Field>
+          <div className="grid gap-2 md:col-span-4 sm:flex">
+            <Button type="submit">{rowId(adjustment) ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />} {rowId(adjustment) ? "Update Adjustment" : "Add Adjustment"}</Button>
+            {rowId(adjustment) ? <Button type="button" variant="ghost" onClick={() => setAdjustment({ adjustmentType: "Other", description: "", amount: "", direction: "increase" })}>Cancel Edit</Button> : null}
+          </div>
+        </form>
+        <div className="grid gap-2 sm:flex">
+          {settlement.status !== "Paid" ? <Button onClick={onMarkPaid}><ReceiptIndianRupee className="h-4 w-4" /> Mark as Paid</Button> : null}
+          {settlement.status === "Paid" ? <Button variant="outline" onClick={onMarkUnpaid}><RefreshCcw className="h-4 w-4" /> Mark as Unpaid</Button> : null}
+          <Button variant="outline" onClick={download}><Download className="h-4 w-4" /> Download Settlement Summary</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DinnerSettlementPaidModal({ event, onClose, onSaved }: { event: AnyRow; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState<AnyRow>({ paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: "Cash", referenceNumber: "", notes: "" });
+  async function submit(eventSubmit: FormEvent) {
+    eventSubmit.preventDefault();
+    await api(`/dinner/events/${rowId(event)}/settlement/paid`, { method: "POST", body: JSON.stringify(form) });
+    onSaved();
+  }
+  return (
+    <Modal title="Mark Caterer Settlement Paid" onClose={onClose}>
+      <form className="grid gap-3" onSubmit={submit}>
+        <Field label="Payment Date"><Input type="date" value={form.paymentDate} onChange={(event) => setForm((current: AnyRow) => ({ ...current, paymentDate: event.target.value }))} /></Field>
+        <Field label="Payment Method"><SelectBox value={form.paymentMethod} onChange={(event) => setForm((current: AnyRow) => ({ ...current, paymentMethod: event.target.value }))}><option>Cash</option><option>GPay</option><option>Both</option></SelectBox></Field>
+        <Field label="Reference Number"><Input value={form.referenceNumber} onChange={(event) => setForm((current: AnyRow) => ({ ...current, referenceNumber: event.target.value }))} /></Field>
+        <Field label="Notes"><Input value={form.notes} onChange={(event) => setForm((current: AnyRow) => ({ ...current, notes: event.target.value }))} /></Field>
+        <div className="grid gap-2 sm:flex"><Button type="submit">Mark Paid</Button><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
 function incomeLabel(type: string) {
   if (type.toLowerCase() === "aarti") return "Dharmik Falo (Aarti)";
   if (type.toLowerCase() === "balance") return "Previous Balance";
@@ -1957,7 +3610,7 @@ export default function App() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
   const role = localStorage.getItem("role");
-  const menu = [{ key: "dashboard" as ResourceKey, title: "Dashboard", icon: BarChart3 }, { key: "funds" as ResourceKey, title: "Funds", icon: WalletCards }, ...resources, { key: "reports" as ResourceKey, title: "Report", icon: FileText }];
+  const menu = [{ key: "dashboard" as ResourceKey, title: "Dashboard", icon: BarChart3 }, { key: "funds" as ResourceKey, title: "Funds", icon: WalletCards }, { key: "dinner" as ResourceKey, title: "Dinner Management", icon: Utensils }, ...resources, { key: "reports" as ResourceKey, title: "Report", icon: FileText }];
   const publicMenu = menu.filter((item) => item.key === "dashboard" || item.key === "reports");
   const privateMenu = role === "non-admin" ? menu.filter((item) => item.key === "dashboard") : menu;
   const visibleMenu = authenticated ? privateMenu : publicMenu;
@@ -2051,7 +3704,7 @@ export default function App() {
               </button>
               <span className="hidden text-sm text-muted-foreground lg:inline">Festival Expense Tracker</span>
               <nav className="hidden items-center gap-5 text-lg text-muted-foreground md:flex lg:ml-4">
-                {visibleMenu.filter((item) => item.key === "dashboard" || item.key === "funds" || item.key === "reports").map((item) => (
+                {visibleMenu.filter((item) => item.key === "dashboard" || item.key === "funds" || item.key === "dinner" || item.key === "reports").map((item) => (
                   <button className={cn("hover:text-foreground", safeActive === item.key && "text-foreground")} key={item.key} onClick={() => navigate(item.key)} type="button">{item.title}</button>
                 ))}
               </nav>
@@ -2086,6 +3739,7 @@ export default function App() {
           {!authenticated && safeActive === "reports" ? <Reports publicMode /> : null}
           {authenticated && safeActive === "dashboard" ? <Dashboard setActive={setActive} /> : null}
           {authenticated && safeActive === "funds" ? <FundPage /> : null}
+          {authenticated && safeActive === "dinner" ? <DinnerPage /> : null}
           {authenticated && safeActive === "reports" ? <Reports /> : null}
           {authenticated && activeResource ? <ResourcePage config={activeResource} /> : null}
         </main>

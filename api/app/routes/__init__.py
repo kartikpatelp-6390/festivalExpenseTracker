@@ -1,5 +1,6 @@
 from .auth import auth_bp
 from .dashboard import dashboard_bp
+from .dinner import dinner_bp
 from .crud import (
     estimates_bp,
     expenses_bp,
@@ -18,6 +19,7 @@ from .public import public_bp
 def register_routes(app):
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
+    app.register_blueprint(dinner_bp, url_prefix="/api/dinner")
     app.register_blueprint(festivals_bp, url_prefix="/api/festivals")
     app.register_blueprint(houses_bp, url_prefix="/api/house")
     app.register_blueprint(volunteers_bp, url_prefix="/api/volunteers")
