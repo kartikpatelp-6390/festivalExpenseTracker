@@ -29,6 +29,12 @@ from .crud import row_or_404
 dinner_bp = Blueprint("dinner", __name__)
 
 
+def require_admin():
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "Admin access is required"}), 403
+    return None
+
+
 def money_decimal(value):
     return Decimal(str(value or 0)).quantize(Decimal("0.01"))
 
@@ -272,6 +278,9 @@ def list_events():
 @dinner_bp.post("/events")
 @jwt_required()
 def create_event():
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     try:
         data = event_payload(request.get_json() or {})
     except (ValueError, TypeError) as exc:
@@ -295,6 +304,9 @@ def get_event(event_id):
 @dinner_bp.put("/events/<event_id>")
 @jwt_required()
 def update_event(event_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     event = row_or_404(DinnerEvent, event_id)
     try:
         data = event_payload(request.get_json() or {})
@@ -312,6 +324,9 @@ def update_event(event_id):
 @dinner_bp.post("/events/<event_id>/duplicate")
 @jwt_required()
 def duplicate_event(event_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     source = row_or_404(DinnerEvent, event_id)
     duplicate = DinnerEvent(
         festivalId=source.festivalId,
@@ -321,6 +336,7 @@ def duplicate_event(event_id):
         eventTime=source.eventTime,
         venue=source.venue,
         dinnerType=source.dinnerType,
+        menu=source.menu,
         notes=source.notes,
         showCouponNote=source.showCouponNote,
         couponImportantNote=source.couponImportantNote,
@@ -343,6 +359,9 @@ def duplicate_event(event_id):
 @dinner_bp.post("/events/<event_id>/status")
 @jwt_required()
 def update_event_status(event_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     event = row_or_404(DinnerEvent, event_id)
     status = (request.get_json() or {}).get("status")
     if not status:
@@ -474,6 +493,9 @@ def collection_summary(event_id):
 @dinner_bp.post("/events/<event_id>/collections/<volunteer_id>/handover")
 @jwt_required()
 def update_collection_handover(event_id, volunteer_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     event = row_or_404(DinnerEvent, event_id)
     volunteer_pk = public_id(Volunteer, volunteer_id)
     if not volunteer_pk:
@@ -498,6 +520,9 @@ def update_collection_handover(event_id, volunteer_id):
 @dinner_bp.delete("/registrations/<registration_id>")
 @jwt_required()
 def delete_registration(registration_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     registration = row_or_404(DinnerRegistration, registration_id)
     if registration.checkins.count():
         return jsonify({"error": "This house has check-in history. Delete is blocked to preserve the gate audit trail."}), 400
@@ -660,6 +685,10 @@ def event_report(event_id):
 def plate_confirmation(event_id):
     event = row_or_404(DinnerEvent, event_id)
     data = request.get_json() or {}
+    if data.get("confirmed"):
+        admin_error = require_admin()
+        if admin_error:
+            return admin_error
     final_count = to_int(data.get("finalPlateCount", event_summary(event)["platesEntitled"]))
     event.finalPlateCount = final_count
     if data.get("shared"):
@@ -694,6 +723,9 @@ def recalc_settlement(settlement, event=None):
 @dinner_bp.get("/events/<event_id>/settlement")
 @jwt_required()
 def get_settlement(event_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     event = row_or_404(DinnerEvent, event_id)
     settlement = event.settlement
     if not settlement:
@@ -721,6 +753,9 @@ def settlement_dict(settlement):
 @dinner_bp.post("/events/<event_id>/settlement/adjustments")
 @jwt_required()
 def add_adjustment(event_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     event = row_or_404(DinnerEvent, event_id)
     settlement = event.settlement or DinnerSettlement(eventId=event.id, event=event)
     if not settlement.id:
@@ -744,6 +779,9 @@ def add_adjustment(event_id):
 @dinner_bp.put("/events/<event_id>/settlement/adjustments/<adjustment_id>")
 @jwt_required()
 def update_adjustment(event_id, adjustment_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     event = row_or_404(DinnerEvent, event_id)
     settlement = event.settlement
     if not settlement:
@@ -764,6 +802,9 @@ def update_adjustment(event_id, adjustment_id):
 @dinner_bp.post("/events/<event_id>/settlement/paid")
 @jwt_required()
 def mark_settlement_paid(event_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     event = row_or_404(DinnerEvent, event_id)
     settlement = event.settlement or DinnerSettlement(eventId=event.id, event=event)
     if not settlement.id:
@@ -862,6 +903,9 @@ def mark_settlement_paid(event_id):
 @dinner_bp.post("/events/<event_id>/settlement/unpaid")
 @jwt_required()
 def mark_settlement_unpaid(event_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     event = row_or_404(DinnerEvent, event_id)
     settlement = event.settlement or DinnerSettlement(eventId=event.id, event=event)
     if not settlement.id:
@@ -890,6 +934,9 @@ def mark_settlement_unpaid(event_id):
 @dinner_bp.get("/events/<event_id>/settlement/download")
 @jwt_required()
 def download_settlement(event_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
     event = row_or_404(DinnerEvent, event_id)
     settlement = event.settlement or DinnerSettlement(eventId=event.id, event=event)
     recalc_settlement(settlement, event)

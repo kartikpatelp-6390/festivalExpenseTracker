@@ -410,6 +410,7 @@ class DinnerEvent(db.Model, MongoIdMixin, TimestampMixin):
     eventTime = db.Column("event_time", db.String(20))
     venue = db.Column(db.String(255))
     dinnerType = db.Column("dinner_type", db.String(100))
+    menu = db.Column(db.Text)
     notes = db.Column(db.Text)
     status = db.Column(db.String(40), default="Draft", nullable=False)
     catererPricingType = db.Column("caterer_pricing_type", db.String(20), default="per_plate", nullable=False)

@@ -1970,7 +1970,7 @@ function DinnerPage() {
   const [selected, setSelected] = useState<AnyRow | null>(null);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
-  const [modal, setModal] = useState<"event" | "register" | "coupon" | "checkin" | "settlementPaid" | null>(null);
+  const [modal, setModal] = useState<"event" | "register" | "coupon" | "checkin" | "settlementPaid" | "menu" | null>(null);
   const [editingEvent, setEditingEvent] = useState<AnyRow | null>(null);
   const [activeTab, setActiveTab] = useState("registrations");
   const [registrations, setRegistrations] = useState<AnyRow[]>([]);
@@ -1980,6 +1980,8 @@ function DinnerPage() {
   const [workingRow, setWorkingRow] = useState<AnyRow | null>(null);
   const [notice, setNotice] = useState("");
   const tabContentRef = useRef<HTMLDivElement | null>(null);
+  const role = localStorage.getItem("role");
+  const isAdmin = role === "admin";
 
   async function loadEvents(nextSelected = selectedId) {
     const res = await api<{ data: AnyRow[] }>("/dinner/events?page=1&limit=200&sort=-eventDate");
@@ -2019,13 +2021,17 @@ function DinnerPage() {
   }, [selectedId]);
 
   useEffect(() => {
+    if (!isAdmin && activeTab === "settlement") {
+      setActiveTab("registrations");
+      return;
+    }
     if (selectedId && activeTab === "settlement") {
       api<{ data: AnyRow }>(`/dinner/events/${selectedId}/settlement`).then((res) => setSettlement(res.data)).catch(() => undefined);
     }
     if (selectedId && activeTab === "collections") {
       api<{ data: AnyRow }>(`/dinner/events/${selectedId}/collections`).then((res) => setCollectionSummary(res.data)).catch(() => undefined);
     }
-  }, [activeTab, selectedId]);
+  }, [activeTab, selectedId, isAdmin]);
 
   useEffect(() => {
     if (activeTab !== "scanner") return;
@@ -2080,7 +2086,7 @@ function DinnerPage() {
       <section className="space-y-4">
         <div className="flex flex-nowrap items-center gap-2">
           <Button className="min-w-0 flex-1 basis-0 px-2 text-xs sm:flex-none sm:basis-auto sm:px-3 sm:text-sm" variant="outline" onClick={closeEventDetail}>Back to Dinner</Button>
-          {selected ? (
+          {selected && isAdmin ? (
             <div className="flex min-w-0 flex-1 basis-0 items-center gap-2 sm:flex-none sm:basis-auto">
               <SelectBox className="min-w-0 flex-1 basis-0 text-xs sm:w-52 sm:basis-auto sm:text-sm" value={selected.status || ""} onChange={(event) => setStatus(event.target.value)}>
                 {dinnerStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
@@ -2120,7 +2126,7 @@ function DinnerPage() {
                       ["scanner", "Gate Scanner"],
                       ["collections", "Collections"],
                       ["report", "Report"],
-                      ["settlement", "Settlement"]
+                      ...(isAdmin ? [["settlement", "Settlement"]] : [])
                     ].map(([key, title]) => (
                       <button key={key} type="button" className={cn("min-h-9 shrink-0 rounded px-3 text-sm font-medium text-muted-foreground hover:bg-background hover:text-foreground", activeTab === key && "bg-primary text-primary-foreground shadow-sm hover:bg-primary hover:text-primary-foreground")} onClick={() => setActiveTab(key)}>{title}</button>
                     ))}
@@ -2137,7 +2143,7 @@ function DinnerPage() {
                 setCollectionSummary(res.data);
               }} /> : null}
               {activeTab === "report" ? <DinnerReportPanel report={report} /> : null}
-              {activeTab === "settlement" ? <DinnerSettlementPanel event={selected} settlement={settlement} setSettlement={setSettlement} onMarkPaid={() => setModal("settlementPaid")} onMarkUnpaid={async () => {
+              {isAdmin && activeTab === "settlement" ? <DinnerSettlementPanel event={selected} settlement={settlement} setSettlement={setSettlement} onMarkPaid={() => setModal("settlementPaid")} onMarkUnpaid={async () => {
                 if (!confirm("Mark this caterer settlement as unpaid? This will remove the linked dinner settlement expense.")) return;
                 const res = await api<{ data: AnyRow }>(`/dinner/events/${rowId(selected)}/settlement/unpaid`, { method: "POST" });
                 setSettlement(res.data);
@@ -2148,11 +2154,11 @@ function DinnerPage() {
             </div>
           </>
         ) : <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">Loading dinner event...</CardContent></Card>}
-        {modal === "event" ? <DinnerEventModal event={editingEvent} onClose={() => setModal(null)} onSaved={async (id) => { setModal(null); await loadEvents(id); await loadSelected(); }} /> : null}
+        {isAdmin && modal === "event" ? <DinnerEventModal event={editingEvent} onClose={() => setModal(null)} onSaved={async (id) => { setModal(null); await loadEvents(id); await loadSelected(); }} /> : null}
         {modal === "register" && selected ? <DinnerRegistrationModal event={selected} registration={workingRow} onClose={() => setModal(null)} onSaved={async () => { setModal(null); await loadSelected(); }} /> : null}
         {modal === "coupon" && workingRow ? <DinnerCouponPreview registration={workingRow} onClose={() => setModal(null)} /> : null}
         {modal === "checkin" && workingRow ? <DinnerCheckInModal registration={workingRow} onClose={() => setModal(null)} onSaved={async () => { setModal(null); await loadSelected(); }} /> : null}
-        {modal === "settlementPaid" && selected ? <DinnerSettlementPaidModal event={selected} onClose={() => setModal(null)} onSaved={async () => { setModal(null); const res = await api<{ data: AnyRow }>(`/dinner/events/${rowId(selected)}/settlement`); setSettlement(res.data); await loadEvents(rowId(selected)); }} /> : null}
+        {isAdmin && modal === "settlementPaid" && selected ? <DinnerSettlementPaidModal event={selected} onClose={() => setModal(null)} onSaved={async () => { setModal(null); const res = await api<{ data: AnyRow }>(`/dinner/events/${rowId(selected)}/settlement`); setSettlement(res.data); await loadEvents(rowId(selected)); }} /> : null}
       </section>
     );
   }
@@ -2161,7 +2167,7 @@ function DinnerPage() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Dinner Management</h1>
-        <Button className="w-full sm:w-auto" onClick={() => { setEditingEvent(null); setModal("event"); }}><Plus className="h-4 w-4" /> Create Dinner Event</Button>
+        {isAdmin ? <Button className="w-full sm:w-auto" onClick={() => { setEditingEvent(null); setModal("event"); }}><Plus className="h-4 w-4" /> Create Dinner Event</Button> : null}
       </div>
       {notice ? <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm">{notice}</div> : null}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -2185,7 +2191,7 @@ function DinnerPage() {
           </div>
           <div className="overflow-x-auto rounded-md border">
             <Table>
-              <TableHeader><TableRow><TableHead className="min-w-44">Event</TableHead><TableHead className="min-w-32">Event Date & Time</TableHead><TableHead className="min-w-36">Caterer</TableHead><TableHead className="min-w-28">Pricing</TableHead><TableHead className="min-w-24">Collections</TableHead><TableHead className="min-w-32">Collection Deadline</TableHead><TableHead className="min-w-28">Status</TableHead><TableHead className="min-w-20">Action</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead className="min-w-44">Event</TableHead><TableHead className="min-w-32">Event Date & Time</TableHead><TableHead className="min-w-16 text-center">Menu</TableHead><TableHead className="min-w-36">Caterer</TableHead><TableHead className="min-w-28">Pricing</TableHead><TableHead className="min-w-24">Collections</TableHead><TableHead className="min-w-32">Collection Deadline</TableHead><TableHead className="min-w-28">Status</TableHead>{isAdmin ? <TableHead className="min-w-20">Action</TableHead> : null}</TableRow></TableHeader>
               <TableBody>
                 {filteredEvents.length ? filteredEvents.map((event) => (
                   <TableRow key={rowId(event)} className="cursor-pointer" onClick={() => openEvent(event)}>
@@ -2195,29 +2201,33 @@ function DinnerPage() {
                       <div className="text-xs text-muted-foreground">{event.venue || "Venue pending"}</div>
                     </TableCell>
                     <TableCell className="text-sm">{formatDateDDMMYYYY(event.eventDate)}{event.eventTime ? ` ${event.eventTime}` : ""}</TableCell>
+                    <TableCell className="text-center">
+                      <Button variant="outline" size="icon" title="View menu" onClick={(click) => { click.stopPropagation(); setWorkingRow(event); setModal("menu"); }}><Menu className="h-4 w-4" /></Button>
+                    </TableCell>
                     <TableCell>{event.catererId?.name || event.caterer?.name || "No caterer"}</TableCell>
                     <TableCell className="text-sm">{event.catererPricingType === "fixed" ? money(event.fixedContractAmount) : `${money(event.catererRatePerPlate)} / plate`}</TableCell>
                     <TableCell className="text-sm font-semibold">{event.summary?.collectionsMade || 0}</TableCell>
                     <TableCell className="text-sm">{formatDateDDMMYYYY(event.collectionDeadline)}</TableCell>
                     <TableCell><StatusBadge status={event.status} /></TableCell>
-                    <TableCell>
+                    {isAdmin ? <TableCell>
                       <div className="flex gap-1">
                         <Button variant="outline" size="icon" title="Edit" onClick={(click) => { click.stopPropagation(); setEditingEvent(event); setModal("event"); }}><Pencil className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" title="Duplicate" onClick={(click) => { click.stopPropagation(); duplicateEvent(event); }}><Copy className="h-4 w-4" /></Button>
                       </div>
-                    </TableCell>
+                    </TableCell> : null}
                   </TableRow>
-                )) : <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No dinner events found.</TableCell></TableRow>}
+                )) : <TableRow><TableCell colSpan={isAdmin ? 9 : 8} className="text-center text-muted-foreground">No dinner events found.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
         </CardContent>
       </Card>
-      {modal === "event" ? <DinnerEventModal event={editingEvent} onClose={() => setModal(null)} onSaved={async (id) => { setModal(null); await loadEvents(id); setSelectedId(id); setDetailOpen(true); }} /> : null}
+      {isAdmin && modal === "event" ? <DinnerEventModal event={editingEvent} onClose={() => setModal(null)} onSaved={async (id) => { setModal(null); await loadEvents(id); setSelectedId(id); setDetailOpen(true); }} /> : null}
       {modal === "register" && selected ? <DinnerRegistrationModal event={selected} registration={workingRow} onClose={() => setModal(null)} onSaved={async () => { setModal(null); await loadSelected(); }} /> : null}
       {modal === "coupon" && workingRow ? <DinnerCouponPreview registration={workingRow} onClose={() => setModal(null)} /> : null}
       {modal === "checkin" && workingRow ? <DinnerCheckInModal registration={workingRow} onClose={() => setModal(null)} onSaved={async () => { setModal(null); await loadSelected(); }} /> : null}
-      {modal === "settlementPaid" && selected ? <DinnerSettlementPaidModal event={selected} onClose={() => setModal(null)} onSaved={async () => { setModal(null); const res = await api<{ data: AnyRow }>(`/dinner/events/${rowId(selected)}/settlement`); setSettlement(res.data); await loadEvents(rowId(selected)); }} /> : null}
+      {isAdmin && modal === "settlementPaid" && selected ? <DinnerSettlementPaidModal event={selected} onClose={() => setModal(null)} onSaved={async () => { setModal(null); const res = await api<{ data: AnyRow }>(`/dinner/events/${rowId(selected)}/settlement`); setSettlement(res.data); await loadEvents(rowId(selected)); }} /> : null}
+      {modal === "menu" && workingRow ? <DinnerMenuModal event={workingRow} onClose={() => setModal(null)} /> : null}
     </section>
   );
 }
@@ -2247,6 +2257,32 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={cn("inline-flex min-h-6 items-center rounded px-2 py-0.5 text-xs font-semibold", className)}>{normalized}</span>;
 }
 
+function DinnerMenuModal({ event, onClose }: { event: AnyRow; onClose: () => void }) {
+  const menuLines = String(event.menu || "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+  return (
+    <Modal title="Dinner Menu" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="rounded-md border p-3">
+          <p className="text-lg font-semibold">{event.name || "Dinner Event"}</p>
+          <p className="text-sm text-muted-foreground">{formatDateDDMMYYYY(event.eventDate)}{event.eventTime ? ` ${event.eventTime}` : ""} • {event.venue || "Venue pending"}</p>
+        </div>
+        {menuLines.length ? (
+          <div className="rounded-md border">
+            {menuLines.map((item, index) => (
+              <div key={`${item}-${index}`} className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0">
+                <Utensils className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <span className="min-w-0 break-words text-sm font-medium">{item}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">Menu is not added for this event.</div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function DinnerEventModal({ event, onClose, onSaved }: { event: AnyRow | null; onClose: () => void; onSaved: (id: string) => void }) {
   const [festivals, setFestivals] = useState<AnyRow[]>([]);
   const [caterers, setCaterers] = useState<AnyRow[]>([]);
@@ -2261,6 +2297,7 @@ function DinnerEventModal({ event, onClose, onSaved }: { event: AnyRow | null; o
     eventTime: event?.eventTime || "",
     venue: event?.venue || "",
     dinnerType: event?.dinnerType || "",
+    menu: event?.menu || "",
     notes: event?.notes || "",
     status: event?.status || "Draft",
     catererPricingType: event?.catererPricingType || "per_plate",
@@ -2383,6 +2420,7 @@ function DinnerEventModal({ event, onClose, onSaved }: { event: AnyRow | null; o
             <Field label="Dinner Type"><Input value={form.dinnerType} onChange={(event) => setValue("dinnerType", event.target.value)} placeholder="Community dinner, Prasad, Garba dinner" /></Field>
             <Field label="Status"><SelectBox value={form.status} onChange={(event) => setValue("status", event.target.value)}>{dinnerStatuses.map((status) => <option key={status} value={status}>{status}</option>)}</SelectBox></Field>
             <Field label="Notes"><Input value={form.notes} onChange={(event) => setValue("notes", event.target.value)} /></Field>
+            <Field label="Menu"><textarea className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring" value={form.menu} onChange={(event) => setValue("menu", event.target.value)} placeholder="Enter dinner menu, one item per line" /></Field>
           </div>
         ) : null}
 
@@ -2481,9 +2519,32 @@ function AddCatererModal({ onClose, onCreated }: { onClose: () => void; onCreate
 function DinnerRegistrationPanel({ event, registrations, onRegister, onPreview, onRefresh }: { event: AnyRow; registrations: AnyRow[]; onRegister: (row: AnyRow | null) => void; onPreview: (row: AnyRow) => void; onRefresh: () => void }) {
   const [housePickerOpen, setHousePickerOpen] = useState(false);
   const [paymentView, setPaymentView] = useState<"all" | "unpaid" | "checkedIn">("all");
+  const [registrationSearch, setRegistrationSearch] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState("all");
+  const [volunteerFilter, setVolunteerFilter] = useState("all");
+  const isAdmin = localStorage.getItem("role") === "admin";
   const unpaidRegistrations = registrations.filter((row) => !["Paid", "Complimentary"].includes(row.paymentStatus));
   const checkedInRegistrations = registrations.filter((row) => Number(row.platesUsed || 0) > 0 || Number(row.adultsCheckedIn || 0) > 0 || Number(row.childrenCheckedIn || 0) > 0);
-  const visibleRegistrations = paymentView === "unpaid" ? unpaidRegistrations : paymentView === "checkedIn" ? checkedInRegistrations : registrations;
+  const baseVisibleRegistrations = paymentView === "unpaid" ? unpaidRegistrations : paymentView === "checkedIn" ? checkedInRegistrations : registrations;
+  const volunteerOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    registrations.forEach((row) => {
+      const volunteer = row.volunteerId || row.volunteer || {};
+      const id = rowId(volunteer);
+      if (id) byId.set(id, volunteer.name || "Unknown");
+    });
+    return Array.from(byId.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [registrations]);
+  const visibleRegistrations = baseVisibleRegistrations.filter((row) => {
+    const house = row.houseId || row.house || {};
+    const volunteer = row.volunteerId || row.volunteer || {};
+    const searchText = `${house.houseNumber || ""} ${house.ownerName || ""}`.toLowerCase();
+    const matchesSearch = !registrationSearch.trim() || searchText.includes(registrationSearch.trim().toLowerCase());
+    const isPaid = ["Paid", "Complimentary"].includes(row.paymentStatus);
+    const matchesPayment = paymentFilter === "all" || (paymentFilter === "paid" && isPaid) || (paymentFilter === "unpaid" && !isPaid);
+    const matchesVolunteer = volunteerFilter === "all" || rowId(volunteer) === volunteerFilter;
+    return matchesSearch && matchesPayment && matchesVolunteer;
+  });
   const showMandalColumns = event.contributionType !== "payee_full";
   const registrationColumns = ["houseId", "plateEntitlement", "payeeAmount", "volunteerId", "existingMemberCount", "adults", "childrenBelow7", "totalAttending", "platesUsed", ...(showMandalColumns ? ["contributionType", "mandalAmount"] : []), "couponStatus", "deliveryStatus"];
   const moneyColumns = ["payeeAmount", ...(showMandalColumns ? ["mandalAmount"] : [])];
@@ -2527,6 +2588,21 @@ function DinnerRegistrationPanel({ event, registrations, onRegister, onPreview, 
           </div>
           {paymentView === "unpaid" ? <p className="text-sm text-muted-foreground">Registered houses pending full collection.</p> : null}
           {paymentView === "checkedIn" ? <p className="text-sm text-muted-foreground">Registered houses with gate check-in history.</p> : null}
+        </div>
+        <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_160px_220px]">
+          <div className="relative min-w-0">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input className="pl-8" placeholder="Search house number or name" value={registrationSearch} onChange={(event) => setRegistrationSearch(event.target.value)} />
+          </div>
+          <SelectBox value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)}>
+            <option value="all">All Payments</option>
+            <option value="paid">Paid</option>
+            <option value="unpaid">Unpaid</option>
+          </SelectBox>
+          <SelectBox value={volunteerFilter} onChange={(event) => setVolunteerFilter(event.target.value)}>
+            <option value="all">All Volunteers</option>
+            {volunteerOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </SelectBox>
         </div>
         <DataTable
           rows={visibleRegistrations}
@@ -2577,7 +2653,7 @@ function DinnerRegistrationPanel({ event, registrations, onRegister, onPreview, 
                 <Button className="h-7 min-h-7 w-7 sm:h-7 sm:min-h-7 sm:w-7" variant="outline" size="icon" title="Preview QR coupon" onClick={() => onPreview(row)}><QrCode className="h-3.5 w-3.5" /></Button>
               )}
               <Button className="h-7 min-h-7 w-7 sm:h-7 sm:min-h-7 sm:w-7" variant="outline" size="icon" title="Mark coupon sent" disabled={row.couponStatus === "Not Generated"} onClick={() => sendCoupon(row)}><Send className="h-3.5 w-3.5" /></Button>
-              <Button className="h-7 min-h-7 w-7 sm:h-7 sm:min-h-7 sm:w-7" variant="ghost" size="icon" title="Delete registration, collection, and QR" onClick={() => removeRegistration(row)}><Trash2 className="h-3.5 w-3.5" /></Button>
+              {isAdmin ? <Button className="h-7 min-h-7 w-7 sm:h-7 sm:min-h-7 sm:w-7" variant="ghost" size="icon" title="Delete registration, collection, and QR" onClick={() => removeRegistration(row)}><Trash2 className="h-3.5 w-3.5" /></Button> : null}
             </div>
           )}
         />
@@ -3102,6 +3178,7 @@ function CouponQrWithLogo({ qrImage, sizeClassName, badgeClassName, logoClassNam
 
 function DinnerPlatePanel({ event, metrics, onRefresh }: { event: AnyRow; metrics: AnyRow; onRefresh: () => void }) {
   const [finalCount, setFinalCount] = useState(event.finalPlateCount || metrics.platesEntitled || 0);
+  const isAdmin = localStorage.getItem("role") === "admin";
   const estimated = event.catererPricingType === "fixed" ? Number(event.fixedContractAmount || 0) : Number(finalCount || 0) * Number(event.catererRatePerPlate || 0);
   async function save(shared = false, confirmed = false) {
     await api(`/dinner/events/${rowId(event)}/plate-confirmation`, { method: "POST", body: JSON.stringify({ finalPlateCount: finalCount, shared, confirmed }) });
@@ -3121,7 +3198,7 @@ function DinnerPlatePanel({ event, metrics, onRefresh }: { event: AnyRow; metric
           <Field label="Final Plate Commitment"><Input type="number" value={finalCount} onChange={(event) => setFinalCount(Number(event.target.value || 0))} /></Field>
           <div className="rounded-md border p-3 text-sm">Caterer rate: <strong>{event.catererPricingType === "fixed" ? money(event.fixedContractAmount) : `${money(event.catererRatePerPlate)} / plate`}</strong><br />Estimated caterer amount: <strong>{money(estimated)}</strong></div>
         </div>
-        <div className="grid gap-2 sm:flex sm:flex-wrap"><Button onClick={() => save(true, false)}><Send className="h-4 w-4" /> Share Final Plate Count</Button><Button variant="outline" onClick={() => save(true, true)}><CheckCircle2 className="h-4 w-4" /> Mark Caterer Confirmed</Button></div>
+        <div className="grid gap-2 sm:flex sm:flex-wrap"><Button onClick={() => save(true, false)}><Send className="h-4 w-4" /> Share Final Plate Count</Button>{isAdmin ? <Button variant="outline" onClick={() => save(true, true)}><CheckCircle2 className="h-4 w-4" /> Mark Caterer Confirmed</Button> : null}</div>
         <p className="text-sm text-muted-foreground">Final Plate Commitment = Total Eligible Adults / Age 7+. Children below 7 are not included in plate commitment.</p>
       </CardContent>
     </Card>
@@ -3390,6 +3467,7 @@ function DinnerCheckInModal({ registration, onClose, onSaved }: { registration: 
 }
 
 function DinnerCollectionPanel({ summary, registrations, onRefresh }: { summary: any; registrations: AnyRow[]; onRefresh: () => void | Promise<void> }) {
+  const isAdmin = localStorage.getItem("role") === "admin";
   const fallback = useMemo(() => {
     const rowsByVolunteer = new Map<string, AnyRow>();
     registrations.forEach((row) => {
@@ -3450,7 +3528,7 @@ function DinnerCollectionPanel({ summary, registrations, onRefresh }: { summary:
           columns={["volunteerName", "houseCount", "totalAmount", "cashAmount", "gpayAmount", "handoverStatus"]}
           moneyColumns={["cashAmount", "gpayAmount", "totalAmount"]}
           rowClassName={(row) => row.handoverStatus !== "Collected" ? "bg-amber-50/70 dark:bg-amber-950/20" : ""}
-          actionColumnClassName="max-md:w-12 max-md:min-w-12 md:w-36 md:min-w-36"
+          actionColumnClassName="max-md:w-12 max-md:min-w-12 md:w-28 md:min-w-28"
           renderHeader={(column) => ({
             volunteerName: "Volunteer",
             houseCount: "Houses",
@@ -3465,14 +3543,14 @@ function DinnerCollectionPanel({ summary, registrations, onRefresh }: { summary:
             if (column === "handoverStatus") return <StatusBadge status={row.handoverStatus === "Collected" ? "Collected" : "Pending"} />;
             return undefined;
           }}
-          actions={(row) => {
+          actions={isAdmin ? (row) => {
             const volunteerId = rowId(row.volunteerId || row.volunteer || {});
             return row.handoverStatus === "Collected" ? (
               <Button className="h-7 min-h-7 w-7 p-0 md:h-8 md:w-auto md:px-3" variant="outline" disabled={!volunteerId} title="Undo collection received" onClick={() => updateHandover(row, "Pending")}><RefreshCcw className="h-3.5 w-3.5" /><span className="hidden md:inline">Undo</span></Button>
             ) : (
-              <Button className="h-7 min-h-7 w-7 p-0 md:h-8 md:w-auto md:px-3" disabled={!volunteerId} title="Mark collection received" onClick={() => updateHandover(row, "Collected")}><CheckCircle2 className="h-3.5 w-3.5" /><span className="hidden md:inline">Mark Received</span></Button>
+              <Button className="h-7 min-h-7 w-7 whitespace-nowrap p-0 md:h-8 md:w-auto md:px-3" disabled={!volunteerId} title="Mark collection received" onClick={() => updateHandover(row, "Collected")}><CheckCircle2 className="h-3.5 w-3.5" /><span className="hidden md:inline">Received</span></Button>
             );
-          }}
+          } : undefined}
         />
       </CardContent>
     </Card>
