@@ -2914,6 +2914,9 @@ function DinnerCouponPanel({ registrations, onPreview, onRefresh }: { registrati
 function DinnerCouponPreview({ registration, onClose }: { registration: AnyRow; onClose: () => void }) {
   const qrText = registration.coupon?.qrPayload || registration.coupon?.token || "Generate coupon to create secure QR token";
   const [qrImage, setQrImage] = useState("");
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false);
+  const [sharePhone, setSharePhone] = useState("");
+  const [sharing, setSharing] = useState(false);
   const couponRef = useRef<HTMLDivElement | null>(null);
   const couponExportRef = useRef<HTMLDivElement | null>(null);
   const event = registration.eventId || registration.event || {};
@@ -2971,8 +2974,13 @@ function DinnerCouponPreview({ registration, onClose }: { registration: AnyRow; 
     saveBlob(blob, `${couponCode}.png`);
   }
 
-  async function shareWhatsApp() {
-    const phone = String(house.phone || "").replace(/\D/g, "");
+  function openWhatsAppConfirm() {
+    setSharePhone(String(house.phone || "").replace(/\D/g, ""));
+    setWhatsAppOpen(true);
+  }
+
+  async function shareWhatsApp(phoneValue = sharePhone) {
+    const phone = String(phoneValue || "").replace(/\D/g, "");
     const whatsAppPhone = phone ? phone.startsWith("91") ? phone : `91${phone}` : "";
     const text = [
       `${eventName} dinner coupon`,
@@ -2985,8 +2993,8 @@ function DinnerCouponPreview({ registration, onClose }: { registration: AnyRow; 
       "",
       "Show this QR coupon at the dinner entry gate for check-in.",
       ...(showCouponNote ? ["", couponImportantNote] : []),
-      qrText,
     ].join("\n");
+    setSharing(true);
     const blob = await renderCouponBlob();
     const fileName = `${couponCode}.png`;
     if (blob && navigator.share) {
@@ -3000,15 +3008,22 @@ function DinnerCouponPreview({ registration, onClose }: { registration: AnyRow; 
       if (canShareFile) {
         try {
           await navigator.share(shareData);
+          setSharing(false);
+          setWhatsAppOpen(false);
           return;
         } catch (err) {
-          if (err instanceof DOMException && err.name === "AbortError") return;
+          if (err instanceof DOMException && err.name === "AbortError") {
+            setSharing(false);
+            return;
+          }
         }
       }
     }
     if (blob) saveBlob(blob, fileName);
     const params = new URLSearchParams({ text });
     window.open(`https://wa.me/${whatsAppPhone}?${params.toString()}`, "_blank");
+    setSharing(false);
+    setWhatsAppOpen(false);
   }
 
   return (
@@ -3144,10 +3159,28 @@ function DinnerCouponPreview({ registration, onClose }: { registration: AnyRow; 
         </div>
         <div className="grid gap-2 sm:grid-cols-3">
           <Button variant="outline" onClick={downloadCoupon}><Download className="h-4 w-4" /> Download</Button>
-          <Button variant="outline" onClick={shareWhatsApp}><WhatsAppIcon /> Share on WhatsApp</Button>
+          <Button variant="outline" onClick={openWhatsAppConfirm}><WhatsAppIcon /> Share on WhatsApp</Button>
           <Button onClick={onClose}>Close</Button>
         </div>
       </div>
+      {whatsAppOpen ? (
+        <Modal title="Send Coupon on WhatsApp" onClose={() => !sharing && setWhatsAppOpen(false)}>
+          <div className="space-y-4">
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <p><strong>{house.houseNumber || "-"}</strong> — {house.ownerName || "-"}</p>
+              <p className="text-muted-foreground">{eventName} • {couponCode}</p>
+            </div>
+            <Field label="Mobile Number">
+              <Input value={sharePhone} onChange={(event) => setSharePhone(event.target.value)} placeholder="Enter WhatsApp mobile number" />
+            </Field>
+            <p className="text-sm text-muted-foreground">On mobile, choose WhatsApp from the share sheet to send the coupon image. If image sharing is not supported, the coupon image will download and WhatsApp will open with coupon details.</p>
+            <div className="grid gap-2 sm:flex">
+              <Button disabled={sharing} onClick={() => shareWhatsApp()}><WhatsAppIcon /> {sharing ? "Preparing..." : "Send Coupon Image"}</Button>
+              <Button variant="ghost" disabled={sharing} onClick={() => setWhatsAppOpen(false)}>Cancel</Button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </Modal>
   );
 }
