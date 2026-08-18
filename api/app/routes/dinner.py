@@ -321,6 +321,28 @@ def update_event(event_id):
     return jsonify({"message": "Dinner event updated", "data": event_dict(event)})
 
 
+@dinner_bp.delete("/events/<event_id>")
+@jwt_required()
+def delete_event(event_id):
+    admin_error = require_admin()
+    if admin_error:
+        return admin_error
+    event = row_or_404(DinnerEvent, event_id)
+    settlement = event.settlement
+    linked_expense = Expense.query.get(settlement.expenseId) if settlement and settlement.expenseId else None
+    linked_fund = FundTransaction.query.get(settlement.fundTransactionId) if settlement and settlement.fundTransactionId else None
+    if settlement:
+        settlement.expenseId = None
+        settlement.fundTransactionId = None
+    if linked_expense:
+        db.session.delete(linked_expense)
+    if linked_fund:
+        db.session.delete(linked_fund)
+    db.session.delete(event)
+    db.session.commit()
+    return jsonify({"message": "Dinner event deleted"})
+
+
 @dinner_bp.post("/events/<event_id>/duplicate")
 @jwt_required()
 def duplicate_event(event_id):

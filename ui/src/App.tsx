@@ -2004,6 +2004,7 @@ function DinnerPage() {
   const [collectionSummary, setCollectionSummary] = useState<any>(null);
   const [workingRow, setWorkingRow] = useState<AnyRow | null>(null);
   const [notice, setNotice] = useState("");
+  const [deletingEventId, setDeletingEventId] = useState("");
   const tabContentRef = useRef<HTMLDivElement | null>(null);
   const role = localStorage.getItem("role");
   const isAdmin = role === "admin";
@@ -2078,6 +2079,24 @@ function DinnerPage() {
     setNotice("Dinner event duplicated.");
   }
 
+  async function deleteEvent(event: AnyRow) {
+    const id = rowId(event);
+    if (!id || !confirm(`Delete dinner event "${event.name || "Dinner Event"}"? This will also delete its registrations, coupons, check-ins, collections, and settlement.`)) return;
+    setDeletingEventId(id);
+    try {
+      await api(`/dinner/events/${id}`, { method: "DELETE" });
+      if (selectedId === id) {
+        closeEventDetail();
+        await loadEvents("");
+      } else {
+        await loadEvents(selectedId);
+      }
+      setNotice("Dinner event deleted.");
+    } finally {
+      setDeletingEventId("");
+    }
+  }
+
   async function setStatus(status: string) {
     if (!selected) return;
     if (["Completed", "Cancelled"].includes(status) && !confirm(`Mark this dinner event as ${status}?`)) return;
@@ -2117,6 +2136,10 @@ function DinnerPage() {
                 {dinnerStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
               </SelectBox>
               <Button className="h-10 w-10 shrink-0 px-0 sm:w-auto sm:px-3" variant="outline" title="Edit event" onClick={() => { setEditingEvent(selected); setModal("event"); }}><Pencil className="h-4 w-4" /><span className="hidden sm:inline">Edit</span></Button>
+              <Button className="h-10 w-10 shrink-0 px-0 sm:w-auto sm:px-3" variant="destructive" disabled={deletingEventId === rowId(selected)} title="Delete event" onClick={() => deleteEvent(selected)}>
+                {deletingEventId === rowId(selected) ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                <span className="hidden sm:inline">{deletingEventId === rowId(selected) ? "Deleting..." : "Delete"}</span>
+              </Button>
             </div>
           ) : null}
         </div>
@@ -2238,6 +2261,9 @@ function DinnerPage() {
                       <div className="flex gap-1">
                         <Button variant="outline" size="icon" title="Edit" onClick={(click) => { click.stopPropagation(); setEditingEvent(event); setModal("event"); }}><Pencil className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" title="Duplicate" onClick={(click) => { click.stopPropagation(); duplicateEvent(event); }}><Copy className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" title="Delete" disabled={deletingEventId === rowId(event)} onClick={(click) => { click.stopPropagation(); deleteEvent(event); }}>
+                          {deletingEventId === rowId(event) ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        </Button>
                       </div>
                     </TableCell> : null}
                   </TableRow>
