@@ -1164,6 +1164,7 @@ function FundPage() {
 function FundForm({ fund, initialFund, volunteers, year, onClose, onSaved }: { fund: AnyRow | null; initialFund?: AnyRow | null; volunteers: AnyRow[]; year: string; onClose: () => void; onSaved: () => void }) {
   const [houses, setHouses] = useState<AnyRow[]>([]);
   const [qrOpen, setQrOpen] = useState(false);
+  const [savingMode, setSavingMode] = useState<"close" | "new" | "download" | null>(null);
   const source = fund || initialFund || {};
   const [form, setForm] = useState<AnyRow>({
     type: source.type || "",
@@ -1192,9 +1193,13 @@ function FundForm({ fund, initialFund, volunteers, year, onClose, onSaved }: { f
     label: volunteer.name || "",
     search: `${volunteer.phone || ""} ${volunteer.name || ""}`
   }));
+  const bccbBankVolunteerId = rowId(volunteers.find((volunteer) => String(volunteer.name || "").toLowerCase().includes("bccb bank")) || {});
 
   function setValue(key: string, value: string) {
     const next = { ...form, [key]: value };
+    if (key === "paymentMethod" && value === "GPay" && bccbBankVolunteerId) {
+      next.volunteerId = bccbBankVolunteerId;
+    }
     if (key === "houseId") {
       const selected = houses.find((house) => rowId(house) === value);
       if (selected) {
@@ -1207,27 +1212,35 @@ function FundForm({ fund, initialFund, volunteers, year, onClose, onSaved }: { f
 
   async function submit(event: FormEvent, mode: "close" | "new" | "download" = "close") {
     event.preventDefault();
-    const payload = { ...form };
-    if (payload.type !== "house") {
-      delete payload.houseId;
-      delete payload.alternativePhone;
+    if (savingMode) return;
+    setSavingMode(mode);
+    try {
+      const payload = { ...form };
+      if (payload.type !== "house") {
+        delete payload.houseId;
+        delete payload.alternativePhone;
+      }
+      const res = await api<{ data: AnyRow }>(fund ? `/funds/${rowId(fund)}` : "/funds", {
+        method: fund ? "PUT" : "POST",
+        body: JSON.stringify(payload)
+      });
+      await onSaved();
+      if (mode === "download") {
+        const id = rowId(res.data);
+        const blob = await apiBlob(`/funds/download/${id}?action=download`);
+        downloadBlob(blob, `receipt_${id}.pdf`);
+      }
+      if (mode === "new") {
+        setForm({ ...form, name: "", amount: "", reference: "", houseId: "" });
+        return;
+      }
+      onClose();
+    } finally {
+      setSavingMode(null);
     }
-    const res = await api<{ data: AnyRow }>(fund ? `/funds/${rowId(fund)}` : "/funds", {
-      method: fund ? "PUT" : "POST",
-      body: JSON.stringify(payload)
-    });
-    await onSaved();
-    if (mode === "download") {
-      const id = rowId(res.data);
-      const blob = await apiBlob(`/funds/download/${id}?action=download`);
-      downloadBlob(blob, `receipt_${id}.pdf`);
-    }
-    if (mode === "new") {
-      setForm({ ...form, name: "", amount: "", reference: "", houseId: "" });
-      return;
-    }
-    onClose();
   }
+
+  const saving = savingMode !== null;
 
   return (
     <Modal title={fund ? "Edit Fund" : "Add Fund"} onClose={onClose} wide>
@@ -1253,10 +1266,19 @@ function FundForm({ fund, initialFund, volunteers, year, onClose, onSaved }: { f
           </button>
         </div>
         <div className="grid gap-2 md:col-span-2 sm:flex sm:flex-wrap">
-          <Button className="w-full sm:w-auto" type="submit">Save</Button>
-          <Button className="w-full sm:w-auto" type="button" variant="secondary" onClick={(event) => submit(event as unknown as FormEvent, "download")}><Download className="h-4 w-4" /> Save & Download</Button>
-          <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={(event) => submit(event as unknown as FormEvent, "new")}>Save & New</Button>
-          <Button className="w-full sm:w-auto" type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button className="w-full sm:w-auto" type="submit" disabled={saving}>
+            {savingMode === "close" ? <RefreshCcw className="h-4 w-4 animate-spin" /> : null}
+            {savingMode === "close" ? "Saving..." : "Save"}
+          </Button>
+          <Button className="w-full sm:w-auto" type="button" variant="secondary" disabled={saving} onClick={(event) => submit(event as unknown as FormEvent, "download")}>
+            {savingMode === "download" ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {savingMode === "download" ? "Saving..." : "Save & Download"}
+          </Button>
+          <Button className="w-full sm:w-auto" type="button" variant="outline" disabled={saving} onClick={(event) => submit(event as unknown as FormEvent, "new")}>
+            {savingMode === "new" ? <RefreshCcw className="h-4 w-4 animate-spin" /> : null}
+            {savingMode === "new" ? "Saving..." : "Save & New"}
+          </Button>
+          <Button className="w-full sm:w-auto" type="button" variant="ghost" disabled={saving} onClick={onClose}>Cancel</Button>
         </div>
       </form>
       {qrOpen ? (
@@ -1925,6 +1947,9 @@ function WhatsAppModal({ fund, phones, onClose }: { fund: AnyRow; phones: string
 
 Get your collection receipt from the link below:
 ${res.url}
+
+Track fund, balance, expenses and reports here:
+https://festival.kplab.dev
 
 Jay Shree Ram`;
       let whatsAppPhone = String(phone).replace(/\D/g, "");
